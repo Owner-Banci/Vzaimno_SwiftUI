@@ -11,12 +11,12 @@ final class AddressSearchService {
     private let isEnabled: Bool
 
     init() {
-        // В превью отключаем сервис.
-        if RuntimeEnvironment.isPreview {
-            self.searchManager = nil
-            self.isEnabled = false
-            return
-        }
+//        // В превью отключаем сервис.
+//        if RuntimeEnvironment.isPreview {
+//            self.searchManager = nil
+//            self.isEnabled = false
+//            return
+//        }
 
         YandexMapConfigurator.configureIfNeeded()
 

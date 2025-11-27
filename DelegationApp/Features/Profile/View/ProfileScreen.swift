@@ -68,7 +68,7 @@ struct ProfileScreen: View {
     }
     
     private var settings: some View {
-        SectionBox(title: "НАСТРОЙКИ") {
+        SectionBox(title: "Настройки") {
             ToggleRow(title: "Тёмная тема", isOn: $vm.darkMode)
             NavRow(title: "Уведомления")
             NavRow(title: "Платежи и выплаты")
@@ -76,14 +76,14 @@ struct ProfileScreen: View {
     }
     
     private var support: some View {
-        SectionBox(title: "ПОДДЕРЖКА") {
+        SectionBox(title: "Поддержка") {
             NavRow(title: "Помощь")
             NavRow(title: "Правила и условия")
         }
     }
     
     private var reviews: some View {
-        SectionBox(title: "ОТЗЫВЫ") {
+        SectionBox(title: "Отзывы") {
             ForEach(vm.reviews) { r in
                 HStack(alignment: .top, spacing: 12) {
                     Circle().fill(Theme.ColorToken.milk).frame(width: 40, height: 40)
@@ -100,12 +100,14 @@ struct ProfileScreen: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.vertical, 8)
+                .padding(.horizontal, 8)
             }
             Button("Посмотреть все отзывы") { }
                 .font(.system(size: 15, weight: .semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 6)
                 .tint(Theme.ColorToken.turquoise)
+                .padding()
         }
     }
 }
@@ -157,3 +159,11 @@ private struct NavRow: View {
 
 
 
+#Preview {
+    let service = MockProfileService()
+    let vm = ProfileViewModel(service: service)
+    ProfileScreen(vm: vm)
+}
+
+//@StateObject var vm: ProfileViewModel
+//init(vm: ProfileViewModel) { _vm = StateObject(wrappedValue: vm) }

@@ -93,6 +93,7 @@ struct DelegationApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(container)
+                .ignoresSafeArea()
         }
     }
 }

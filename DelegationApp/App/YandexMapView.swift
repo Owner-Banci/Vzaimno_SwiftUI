@@ -23,11 +23,10 @@ struct YandexMapView: UIViewRepresentable {
         // Контейнер, в который при обычном запуске добавим YMKMapView.
         let container = UIView()
         container.backgroundColor = .clear
-
-        // В превью — ничего не добавляем, просто пустой UIView.
-        guard !RuntimeEnvironment.isPreview else {
-            return container
-        }
+//        // В превью — ничего не добавляем, просто пустой UIView.
+//        guard !RuntimeEnvironment.isPreview else {
+//            return container
+//        }
 
         // В обычном запуске инициализируем SDK и карту.
         YandexMapConfigurator.configureIfNeeded()
@@ -57,7 +56,7 @@ struct YandexMapView: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {
         guard
-            !RuntimeEnvironment.isPreview,
+//            !RuntimeEnvironment.isPreview,
             let mapView = context.coordinator.mapView,
             let point = centerPoint
         else { return }

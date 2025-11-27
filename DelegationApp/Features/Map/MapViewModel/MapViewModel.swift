@@ -9,7 +9,37 @@ import SwiftUI
 import YandexMapsMobile
 import Foundation
 
+// MARK: - Режимы отображения карты
 
+/// Режим отображения карты.
+/// - `.real` — настоящая карта Яндекса.
+/// - `.placeholder` — заглушка (для превью / когда карту рендерить нельзя).
+enum MapDisplayMode {
+    case real
+    case placeholder
+}
+
+/// Централизованная конфигурация карты.
+///
+/// Здесь одна точка, где ты решаешь, что именно показывается:
+/// настоящая карта или заглушка.
+enum MapDisplayConfig {
+
+    /// Основная функция, которая решает, в каком режиме показывать карту.
+    ///
+    /// Можно поменять реализацию, добавить флаги DEBUG/RELEASE,
+    /// удалённые конфиги и т.д.
+    static func defaultMode() -> MapDisplayMode {
+        // Пример:
+        // В DEBUG можно держать заглушку, чтобы карта не мешала верстать UI.
+        // В RELEASE — реальная карта.
+        #if DEBUG
+        return .placeholder
+        #else
+        return .real
+        #endif
+    }
+}
 
 // MARK: - Холст карты
 
@@ -22,20 +52,22 @@ import Foundation
 /// Она не знает ни про фильтры, ни про поиск — только про то, ЧТО рисовать.
 struct MapCanvasView: View {
 
-    /// Точка, на которую должна быть центрирована карта.
+    /// Точка, на которую центрируется карта.
     @Binding var centerPoint: YMKPoint?
 
-    /// Режим отображения.
+    /// Текущий режим отображения (реальная карта / заглушка).
     let mode: MapDisplayMode
 
     var body: some View {
         Group {
             switch mode {
             case .real:
+                // Живая карта Яндекса.
                 YandexMapView(centerPoint: $centerPoint)
-//                    .ignoresSafeArea(edges: .bottom)
+
 
             case .placeholder:
+                // Заглушка для превью / работы над UI.
                 Rectangle()
                     .fill(Theme.ColorToken.milk)
                     .overlay(
@@ -43,12 +75,13 @@ struct MapCanvasView: View {
                             Image(systemName: "map")
                                 .font(.system(size: 32))
                                 .foregroundColor(Theme.ColorToken.textSecondary)
+
                             Text("Map placeholder")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Theme.ColorToken.textSecondary)
                         }
                     )
-//                    .ignoresSafeArea(edges: .bottom)
+
             }
         }
     }

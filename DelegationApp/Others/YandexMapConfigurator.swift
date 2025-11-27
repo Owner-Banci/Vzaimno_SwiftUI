@@ -6,7 +6,7 @@ enum YandexMapConfigurator {
 
     static func configureIfNeeded() {
         // В SwiftUI Preview вообще не инициализируем SDK.
-        if RuntimeEnvironment.isPreview { return }
+//        if RuntimeEnvironment.isPreview { return }
         guard !isConfigured else { return }
 
         // ⬇ сюда твой реальный ключ
