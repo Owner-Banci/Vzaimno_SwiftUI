@@ -92,9 +92,9 @@ private struct RouteRow: View {
 }
 
 
-#Preview("RouteScreen") {
-    NavigationStack {
-        RouteScreen(vm: PreviewData.routeVM)
-    }
-    .preferredColorScheme(.light)
-}
+//#Preview("RouteScreen") {
+//    NavigationStack {
+//        RouteScreen(vm: PreviewData.routeVM)
+//    }
+//    .preferredColorScheme(.light)
+//}

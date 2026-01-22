@@ -159,11 +159,11 @@ private struct NavRow: View {
 
 
 
-#Preview {
-    let service = MockProfileService()
-    let vm = ProfileViewModel(service: service)
-    ProfileScreen(vm: vm)
-}
+//#Preview {
+//    let service = MockProfileService()
+//    let vm = ProfileViewModel(service: service)
+//    ProfileScreen(vm: vm)
+//}
 
 //@StateObject var vm: ProfileViewModel
 //init(vm: ProfileViewModel) { _vm = StateObject(wrappedValue: vm) }

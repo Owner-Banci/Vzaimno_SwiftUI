@@ -136,68 +136,119 @@
 //    }
 //}
 
-import SwiftUI
+//import SwiftUI
+//
+///// Главный контейнер приложения с кастомным «стеклянным» TabBar
+//struct RootView: View {
+//    @EnvironmentObject var container: AppContainer
+//
+//    /// Текущая выбранная вкладка
+//    @State private var selection: AppTab = .map
+//
+//    /// Пример бейджа на профиле (красный кружок «2»)
+//    private let badges: [AppTab: Int] = [.profile: 2]
+//
+//    var body: some View {
+//        ZStack(alignment: .bottom) {
+//            // Контент под TabBar — карта и остальные экраны
+//            tabContent
+//                .ignoresSafeArea() // фон двигается под таббаром
+//
+//            // Кастомный «Liquid Glass» TabBar
+//            LiquidTabBar(selection: $selection, badges: badges)
+//                .padding(.horizontal, 16)
+//                .padding(.bottom, 4) // бар чуть выше, не «прилипает» к home-индикатору
+//        }
+//        .background(Theme.ColorToken.milk) // фон, если вдруг нет карты
+//        .tint(Theme.ColorToken.turquoise)
+//    }
+//
+//    // MARK: - Контент для каждой вкладки
+//
+//    @ViewBuilder
+//    private var tabContent: some View {
+//        switch selection {
+//        case .map:
+//            NavigationStack {
+//                MapScreen(
+//                    vm: .init(
+//                        service: container.taskService,
+//                        searchService: AddressSearchService()
+//                            
+//                    ), mapMode: .real
+//                )
+//            }
+//
+//        case .route:
+//            NavigationStack {
+//                RouteScreen(vm: .init(service: container.taskService))
+//            }
+//
+//        case .ads:
+//            NavigationStack {
+//                MyAdsScreen()
+//            }
+//
+//        case .chats:
+//            NavigationStack {
+//                ChatsScreen(vm: .init(service: container.chatService))
+//            }
+//
+//        case .profile:
+//            NavigationStack {
+//                ProfileScreen(vm: .init(service: container.profileService))
+//            }
+//        }
+//    }
+//}
 
-/// Главный контейнер приложения с кастомным «стеклянным» TabBar
-struct RootView: View {
-    @EnvironmentObject var container: AppContainer
-
-    /// Текущая выбранная вкладка
-    @State private var selection: AppTab = .map
-
-    /// Пример бейджа на профиле (красный кружок «2»)
-    private let badges: [AppTab: Int] = [.profile: 2]
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            // Контент под TabBar — карта и остальные экраны
-            tabContent
-                .ignoresSafeArea() // фон двигается под таббаром
-
-            // Кастомный «Liquid Glass» TabBar
-            LiquidTabBar(selection: $selection, badges: badges)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 4) // бар чуть выше, не «прилипает» к home-индикатору
-        }
-        .background(Theme.ColorToken.milk) // фон, если вдруг нет карты
-        .tint(Theme.ColorToken.turquoise)
-    }
-
-    // MARK: - Контент для каждой вкладки
-
-    @ViewBuilder
-    private var tabContent: some View {
-        switch selection {
-        case .map:
-            NavigationStack {
-                MapScreen(
-                    vm: .init(
-                        service: container.taskService,
-                        searchService: AddressSearchService()
-                            
-                    ), mapMode: .real
-                )
-            }
-
-        case .route:
-            NavigationStack {
-                RouteScreen(vm: .init(service: container.taskService))
-            }
-
-        case .ads:
-            NavigationStack {
-                MyAdsScreen()
-            }
-
-        case .chats:
-            NavigationStack {
-                ChatsScreen(vm: .init(service: container.chatService))
-            }
-
-        case .profile:
-            NavigationStack {
-                ProfileScreen(vm: .init(service: container.profileService))
-            }
-        }
-    }
-}
+//import SwiftUI
+//
+//struct RootView: View {
+//    @EnvironmentObject var container: AppContainer
+//
+//    var body: some View {
+//        if container.session.isAuthorized {
+//            MainTabView()
+//        } else {
+//            AuthScreen()
+//        }
+//    }
+//}
+//
+//private struct MainTabView: View {
+//    @EnvironmentObject var container: AppContainer
+//    @State private var selectedTab = 0
+//
+//    var body: some View {
+//        TabView(selection: $selectedTab) {
+//            NavigationStack {
+//                MapScreen(vm: .init(service: container.taskService))
+//            }
+//            .tabItem { Label("Карта", systemImage: "map") }
+//            .tag(0)
+//
+//            NavigationStack {
+//                RouteScreen(vm: .init(service: container.taskService))
+//            }
+//            .tabItem { Label("Маршрут", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
+//            .tag(1)
+//
+//            NavigationStack {
+//                ChatsScreen(vm: .init(service: container.chatService))
+//            }
+//            .tabItem { Label("Чат", systemImage: "bubble.left.and.bubble.right") }
+//            .tag(2)
+//
+//            NavigationStack {
+//                ProfileScreen(vm: .init(service: container.profileService))
+//                    .toolbar {
+//                        Button("Logout") { container.session.logout() }
+//                    }
+//            }
+//            .tabItem { Label("Профиль", systemImage: "person.circle") }
+//            .tag(3)
+//        }
+//        .tint(Theme.ColorToken.turquoise)
+//    }
+//}

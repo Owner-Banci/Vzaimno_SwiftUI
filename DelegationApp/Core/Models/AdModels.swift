@@ -2,13 +2,6 @@
 //  AdModels.swift
 //  iCuno test
 //
-//  Created by maftuna murtazaeva on 24.11.2025.
-//
-
-//
-//  AdModels.swift
-//  iCuno test
-//
 //  Создано для экрана объявлений.
 //
 

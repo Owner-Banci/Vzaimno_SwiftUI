@@ -1,35 +1,35 @@
-//
-// AppContainer.swift
-// iCuno test
-//
-// Created by maftuna murtazaeva on 07.11.2025.
-//
-
 import Foundation
 import SwiftUI
 
-/// Простой DI-контейнер: подставляем моки сервисов.
+@MainActor
 final class AppContainer: ObservableObject {
     let taskService: TaskService
     let chatService: ChatService
     let profileService: ProfileService
+    let authService: AuthService
+
+    // ВАЖНО: lazy — чтобы инициализация SessionStore произошла уже на MainActor
+    lazy var session: SessionStore = SessionStore(auth: authService)
 
     init(
         taskService: TaskService,
         chatService: ChatService,
         profileService: ProfileService,
+        authService: AuthService
     ) {
         self.taskService = taskService
         self.chatService = chatService
         self.profileService = profileService
+        self.authService = authService
     }
 }
 
 extension AppContainer {
-    /// Контейнер для превью/раннего старта — только заглушки.
+    @MainActor
     static let preview = AppContainer(
         taskService: MockTaskService(),
         chatService: MockChatService(),
-        profileService: MockProfileService()
+        profileService: MockProfileService(),
+        authService: NetworkAuthService()
     )
 }

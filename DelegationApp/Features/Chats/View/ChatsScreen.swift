@@ -43,8 +43,8 @@ struct ChatsScreen: View {
     }
 }
 
-#Preview {
-    ChatsScreen(
-        vm: ChatsViewModel(service: MockChatService())
-    )
-}
+//#Preview {
+//    ChatsScreen(
+//        vm: ChatsViewModel(service: MockChatService())
+//    )
+//}
