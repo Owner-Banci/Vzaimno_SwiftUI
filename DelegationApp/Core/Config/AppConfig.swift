@@ -18,7 +18,7 @@ enum AppConfig {
     // Когда будешь полноценно тестировать — верни true.
     static let authEnabled: Bool = {
         #if DEBUG
-        return false   // <-- МЕНЯЕШЬ ТУТ: false = без авторизации
+        return true   // <-- МЕНЯЕШЬ ТУТ: false = без авторизации
         #else
         return true
         #endif

@@ -34,7 +34,7 @@ enum MapDisplayConfig {
         // В DEBUG можно держать заглушку, чтобы карта не мешала верстать UI.
         // В RELEASE — реальная карта.
         #if DEBUG
-        return .placeholder
+        return .real
         #else
         return .real
         #endif

@@ -47,7 +47,7 @@ struct MyAdsScreen: View {
 
 
             newAdButton
-                .padding(.bottom, 45)
+                .padding(.bottom, 85)
         }
         .sheet(isPresented: $showNewAdSheet) {
             NewAdCategoryScreen()
