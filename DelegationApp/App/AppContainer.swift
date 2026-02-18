@@ -6,6 +6,7 @@ final class AppContainer: ObservableObject {
     let taskService: TaskService
     let chatService: ChatService
     let profileService: ProfileService
+    let announcementService: AnnouncementService
     let authService: AuthService
 
     // ВАЖНО: lazy — чтобы инициализация SessionStore произошла уже на MainActor
@@ -15,11 +16,13 @@ final class AppContainer: ObservableObject {
         taskService: TaskService,
         chatService: ChatService,
         profileService: ProfileService,
+        announcementService: AnnouncementService,
         authService: AuthService
     ) {
         self.taskService = taskService
         self.chatService = chatService
         self.profileService = profileService
+        self.announcementService = announcementService
         self.authService = authService
     }
 }
@@ -30,6 +33,7 @@ extension AppContainer {
         taskService: MockTaskService(),
         chatService: MockChatService(),
         profileService: MockProfileService(),
+        announcementService: MockAnnouncementService(),
         authService: NetworkAuthService()
     )
 }

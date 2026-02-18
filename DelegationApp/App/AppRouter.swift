@@ -1,8 +1,20 @@
 import SwiftUI
 
+/// Опциональный "роутер", чтобы можно было использовать как корневой View в превью/в будущем.
+struct AppRouter: View {
+    @EnvironmentObject var container: AppContainer
+
+    var body: some View {
+        RootView()
+            .environmentObject(container)
+            .environmentObject(container.session)
+    }
+}
+
+/// Корневой экран приложения: проверка сессии → авторизация → основной таббар.
 struct RootView: View {
     @EnvironmentObject var container: AppContainer
-    @EnvironmentObject var session: SessionStore   // <- ВОТ ЭТО ВАЖНО
+    @EnvironmentObject var session: SessionStore
 
     var body: some View {
         Group {
@@ -27,45 +39,6 @@ struct RootView: View {
     }
 }
 
-//private struct MainTabView: View {
-//    @EnvironmentObject var container: AppContainer
-//    @EnvironmentObject var session: SessionStore   // <- чтобы logout обновлял UI
-//
-//    @State private var selectedTab = 0
-//
-//    var body: some View {
-//        TabView(selection: $selectedTab) {
-//            NavigationStack {
-//                MapScreen(vm: .init(service: container.taskService))
-//            }
-//            .tabItem { Label("Карта", systemImage: "map") }
-//            .tag(0)
-//
-//            NavigationStack {
-//                RouteScreen(vm: .init(service: container.taskService))
-//            }
-//            .tabItem { Label("Маршрут", systemImage: "point.topleft.down.curvedto.point.bottomright.up") }
-//            .tag(1)
-//
-//            NavigationStack {
-//                ChatsScreen(vm: .init(service: container.chatService))
-//            }
-//            .tabItem { Label("Чаты", systemImage: "bubble.left.and.bubble.right") }
-//            .tag(2)
-//
-//            NavigationStack {
-//                ProfileScreen(vm: .init(service: container.profileService))
-//                    .toolbar {
-//                        Button("Logout") { session.logout() }
-//                    }
-//            }
-//            .tabItem { Label("Профиль", systemImage: "person.circle") }
-//            .tag(3)
-//        }
-//        .tint(Theme.ColorToken.turquoise)
-//    }
-//}
-
 private struct MainTabView: View {
     @EnvironmentObject var container: AppContainer
     @EnvironmentObject var session: SessionStore
@@ -76,13 +49,12 @@ private struct MainTabView: View {
         ZStack {
             contentView
         }
-        // Вставляем кастомный TabBar снизу как safeAreaInset,
-        // чтобы контент не прятался под ним.
+        // Кастомный TabBar снизу так, чтобы контент не уезжал под него
         .safeAreaInset(edge: .bottom) {
             LiquidTabBar(selection: $tab)
-                .padding(.horizontal, 15)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
         }
-
         .tint(Theme.ColorToken.turquoise)
     }
 
@@ -91,9 +63,11 @@ private struct MainTabView: View {
         switch tab {
         case .map:
             NavigationStack {
-                // ВАЖНО: теперь карта будет настоящая (если ты включила .real)
                 MapScreen(
-                    vm: .init(service: container.taskService),
+                    vm: .init(
+                        service: container.taskService,
+                        searchService: AddressSearchService()
+                    ),
                     mapMode: MapDisplayConfig.defaultMode()
                 )
             }
@@ -105,7 +79,12 @@ private struct MainTabView: View {
 
         case .ads:
             NavigationStack {
-                MyAdsScreen()
+                MyAdsScreen(
+                    vm: .init(
+                        service: container.announcementService,
+                        session: session
+                    )
+                )
             }
 
         case .chats:
@@ -117,11 +96,11 @@ private struct MainTabView: View {
             NavigationStack {
                 ProfileScreen(vm: .init(service: container.profileService))
                     .toolbar {
-                        Button("Logout") { session.logout() }
+                        if AppConfig.authEnabled {
+                            Button("Logout") { session.logout() }
+                        }
                     }
             }
         }
-
-
     }
 }
