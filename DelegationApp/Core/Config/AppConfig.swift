@@ -37,17 +37,22 @@ enum AppConfig {
         // Если захочешь — можешь положить API_BASE_URL в Info.plist,
         // тогда здесь подхватится автоматически (удобно для разных конфигов).
         if let s = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String,
-           let url = URL(string: s),
-           !s.isEmpty {
+           !s.isEmpty,
+           let url = URL(string: s) {
             return url
         }
 
+        let fallback: String
         #if targetEnvironment(simulator)
-        return URL(string: "http://127.0.0.1:8000")!
+        fallback = "http://127.0.0.1:8000"
         #else
         // !!! Поменяй на IP твоего Mac (в той же сети Wi-Fi)
-        return URL(string: "http://192.168.1.10:8000")!
+        fallback = "http://192.168.1.10:8000"
         #endif
+
+        guard let url = URL(string: fallback) else {
+            preconditionFailure("Invalid API base URL fallback: \(fallback)")
+        }
+        return url
     }()
 }
-

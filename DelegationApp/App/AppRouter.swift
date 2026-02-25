@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Опциональный "роутер", чтобы можно было использовать как корневой View в превью/в будущем.
 struct AppRouter: View {
     @EnvironmentObject var container: AppContainer
 
@@ -11,7 +10,6 @@ struct AppRouter: View {
     }
 }
 
-/// Корневой экран приложения: проверка сессии → авторизация → основной таббар.
 struct RootView: View {
     @EnvironmentObject var container: AppContainer
     @EnvironmentObject var session: SessionStore
@@ -42,20 +40,16 @@ struct RootView: View {
 private struct MainTabView: View {
     @EnvironmentObject var container: AppContainer
     @EnvironmentObject var session: SessionStore
-
     @State private var tab: AppTab = .map
 
     var body: some View {
-        ZStack {
-            contentView
-        }
-        // Кастомный TabBar снизу так, чтобы контент не уезжал под него
-        .safeAreaInset(edge: .bottom) {
-            LiquidTabBar(selection: $tab)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-        }
-        .tint(Theme.ColorToken.turquoise)
+        ZStack { contentView }
+            .safeAreaInset(edge: .bottom) {
+                LiquidTabBar(selection: $tab)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
+            .tint(Theme.ColorToken.turquoise)
     }
 
     @ViewBuilder
@@ -66,6 +60,7 @@ private struct MainTabView: View {
                 MapScreen(
                     vm: .init(
                         service: container.taskService,
+                        announcementService: container.announcementService,
                         searchService: AddressSearchService()
                     ),
                     mapMode: MapDisplayConfig.defaultMode()

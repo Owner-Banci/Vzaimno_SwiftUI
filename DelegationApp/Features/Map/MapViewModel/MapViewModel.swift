@@ -1,38 +1,14 @@
-//
-// MapScreen.swift
-// iCuno test
-//
-// Created by maftuna murtazaева on 07.11.2025.
-//
-
 import SwiftUI
 import YandexMapsMobile
 import Foundation
 
-// MARK: - Режимы отображения карты
-
-/// Режим отображения карты.
-/// - `.real` — настоящая карта Яндекса.
-/// - `.placeholder` — заглушка (для превью / когда карту рендерить нельзя).
 enum MapDisplayMode {
     case real
     case placeholder
 }
 
-/// Централизованная конфигурация карты.
-///
-/// Здесь одна точка, где ты решаешь, что именно показывается:
-/// настоящая карта или заглушка.
 enum MapDisplayConfig {
-
-    /// Основная функция, которая решает, в каком режиме показывать карту.
-    ///
-    /// Можно поменять реализацию, добавить флаги DEBUG/RELEASE,
-    /// удалённые конфиги и т.д.
     static func defaultMode() -> MapDisplayMode {
-        // Пример:
-        // В DEBUG можно держать заглушку, чтобы карта не мешала верстать UI.
-        // В RELEASE — реальная карта.
         #if DEBUG
         return .real
         #else
@@ -41,33 +17,17 @@ enum MapDisplayConfig {
     }
 }
 
-// MARK: - Холст карты
-
-/// Вью, которая отвечает ТОЛЬКО за "холст карты":
-/// она выбирает — показать реальную карту или заглушку.
-///
-/// Важно: логика поиска/маршрутов/заданий работает независимо от этого выбора,
-/// потому что она живёт в `MapViewModel` и сервисах.
-/// Обёртка над картой/заглушкой.
-/// Она не знает ни про фильтры, ни про поиск — только про то, ЧТО рисовать.
 struct MapCanvasView: View {
-
-    /// Точка, на которую центрируется карта.
     @Binding var centerPoint: YMKPoint?
-
-    /// Текущий режим отображения (реальная карта / заглушка).
+    let pins: [YMKPoint]
     let mode: MapDisplayMode
 
     var body: some View {
         Group {
             switch mode {
             case .real:
-                // Живая карта Яндекса.
-                YandexMapView(centerPoint: $centerPoint)
-
-
+                YandexMapView(centerPoint: $centerPoint, pins: pins)
             case .placeholder:
-                // Заглушка для превью / работы над UI.
                 Rectangle()
                     .fill(Theme.ColorToken.milk)
                     .overlay(
@@ -75,106 +35,62 @@ struct MapCanvasView: View {
                             Image(systemName: "map")
                                 .font(.system(size: 32))
                                 .foregroundColor(Theme.ColorToken.textSecondary)
-
                             Text("Map placeholder")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Theme.ColorToken.textSecondary)
                         }
                     )
-
             }
         }
     }
 }
 
-/// Простая заглушка вместо карты.
-struct MapPlaceholderView: View {
-    var body: some View {
-        Rectangle()
-            .fill(Theme.ColorToken.milk)
-            .overlay(
-                VStack(spacing: 8) {
-                    Image(systemName: "map")
-                        .font(.system(size: 32))
-                        .foregroundColor(Theme.ColorToken.textSecondary)
-                    Text("Map placeholder")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Theme.ColorToken.textSecondary)
-                }
-            )
-    }
-}
-
-// MARK: - ViewModel карты
-
-/// ViewModel для экрана карты: фильтры, задачи, поиск адреса, центр карты.
+@MainActor
 final class MapViewModel: ObservableObject {
-
-    // MARK: - Фильтры (чипы)
-
+    // MARK: - Фильтры
     @Published var chips: [String] = [
         "Купить", "Доставить", "Забрать",
         "Помочь", "Перенести", "Другое"
     ]
-
     @Published var selected: Set<String> = []
 
-    // MARK: - Задачи рядом
-
+    // MARK: - Моковые задачи (пока оставляем)
     @Published var tasks: [TaskItem] = []
 
+    // MARK: - Объявления на карте
+    @Published private(set) var announcements: [AnnouncementDTO] = []
+    @Published var pins: [YMKPoint] = []
+
     // MARK: - Поиск и карта
-
-    /// Текст в поле поиска адреса.
     @Published var searchText: String = ""
-
-    /// Текущая точка, на которую центрируется карта.
     @Published var centerPoint: YMKPoint?
-
-    /// Сообщение об ошибке (например, "Ничего не найдено").
     @Published var errorMessage: String?
 
     private let service: TaskService
+    private let announcementService: AnnouncementService
     private let searchService: AddressSearchService
 
     init(
         service: TaskService,
+        announcementService: AnnouncementService,
         searchService: AddressSearchService = AddressSearchService()
     ) {
         self.service = service
+        self.announcementService = announcementService
         self.searchService = searchService
 
-        // Загружаем задачи поблизости (как и раньше).
         self.tasks = service.loadNearbyTasks()
-
-        // Стартовая точка карты — Москва (можешь поменять на Самарканд).
-        self.centerPoint = YMKPoint(
-            latitude: 55.751244,
-            longitude: 37.618423
-        )
+        self.centerPoint = YMKPoint(latitude: 55.751244, longitude: 37.618423)
     }
-
-    // MARK: - Логика фильтров
 
     func toggle(_ chip: String) {
-        if selected.contains(chip) {
-            selected.remove(chip)
-        } else {
-            selected.insert(chip)
-        }
+        if selected.contains(chip) { selected.remove(chip) }
+        else { selected.insert(chip) }
     }
 
-    // MARK: - Поиск адреса
-
-    /// Выполнить поиск по адресу и сдвинуть карту.
-    ///
-    /// Важно: этот код работает даже тогда, когда на UI показывается заглушка.
-    /// Просто не будет рендериться сама карта, но `centerPoint` обновится,
-    /// и при включении настоящей карты ты сразу увидишь правильную точку.
     func performSearch() {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
-            // Пустой запрос — просто сбрасываем ошибку.
             errorMessage = nil
             return
         }
@@ -182,16 +98,33 @@ final class MapViewModel: ObservableObject {
         searchService.searchAddress(query) { [weak self] point in
             DispatchQueue.main.async {
                 guard let self else { return }
-
                 if let point {
-                    // Успех: центрируем карту в этой точке.
                     self.centerPoint = point
                     self.errorMessage = nil
                 } else {
-                    // Ничего не нашли.
-                    self.errorMessage = "Ничего не найдено"
+                    self.errorMessage = "Адрес не найден"
                 }
             }
         }
+    }
+
+    func reloadPins() async {
+        do {
+            let list = try await announcementService.publicAnnouncements()
+            self.announcements = list
+            self.pins = list.compactMap { Self.extractPoint(from: $0) }
+        } catch {
+            self.errorMessage = error.localizedDescription
+        }
+    }
+
+    private static func extractPoint(from a: AnnouncementDTO) -> YMKPoint? {
+        guard let pointVal = a.data["point"]?.objectValue else { return nil }
+        guard
+            let lat = pointVal["lat"]?.doubleValue,
+            let lon = pointVal["lon"]?.doubleValue
+        else { return nil }
+
+        return YMKPoint(latitude: lat, longitude: lon)
     }
 }

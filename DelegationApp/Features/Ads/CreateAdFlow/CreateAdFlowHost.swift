@@ -34,8 +34,8 @@ struct CreateAdFlowHost: View {
                     dismiss()
                 }
             )
-            .environmentObject(vm)
         }
+        .environmentObject(vm)
         .background(Theme.ColorToken.milk.ignoresSafeArea())
     }
 }

@@ -1,91 +1,96 @@
-import SwiftUI
-import YandexMapsMobile
-
 /// Обёртка над YMKMapView для использования в SwiftUI.
 ///
 /// Важно: в превью мы не создаём нативную карту вообще,
 /// чтобы не падал SwiftUI Preview.
-struct YandexMapView: UIViewRepresentable {
 
-    /// Координата центра карты.
+import SwiftUI
+import YandexMapsMobile
+
+struct YandexMapView: UIViewRepresentable {
     @Binding var centerPoint: YMKPoint?
+    let pins: [YMKPoint]
 
     final class Coordinator {
         var mapView: YMKMapView?
-        var placemark: YMKPlacemarkMapObject?
+        var centerPlacemark: YMKPlacemarkMapObject?
+        var pinPlacemarks: [YMKPlacemarkMapObject] = []
     }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> UIView {
-        // Контейнер, в который при обычном запуске добавим YMKMapView.
         let container = UIView()
         container.backgroundColor = .clear
-//        // В превью — ничего не добавляем, просто пустой UIView.
-//        guard !RuntimeEnvironment.isPreview else {
-//            return container
-//        }
 
-        // В обычном запуске инициализируем SDK и карту.
         YandexMapConfigurator.configureIfNeeded()
 
-        let mapView = YMKMapView(frame: .zero)
-        mapView!.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(mapView!)
+        guard let mapView = makeNativeMapView() else {
+            return container
+        }
+        mapView.translatesAutoresizingMaskIntoConstraints = false
 
+        container.addSubview(mapView)
         NSLayoutConstraint.activate([
-            mapView!.topAnchor.constraint(equalTo: container.topAnchor),
-            mapView!.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-            mapView!.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            mapView!.trailingAnchor.constraint(equalTo: container.trailingAnchor)
+            mapView.topAnchor.constraint(equalTo: container.topAnchor),
+            mapView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            mapView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            mapView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
 
         context.coordinator.mapView = mapView
 
-        // Стартовая точка.
-        let startPoint = centerPoint ?? YMKPoint(
-            latitude: 55.751244,
-            longitude: 37.618423
-        )
-        updateMap(on: mapView!, coordinator: context.coordinator, to: startPoint)
+        let startPoint = centerPoint ?? YMKPoint(latitude: 55.751244, longitude: 37.618423)
+        applyState(on: mapView, coordinator: context.coordinator, center: startPoint, pins: pins)
 
         return container
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        guard
-//            !RuntimeEnvironment.isPreview,
-            let mapView = context.coordinator.mapView,
-            let point = centerPoint
-        else { return }
+        guard let mapView = context.coordinator.mapView else { return }
 
-        updateMap(on: mapView, coordinator: context.coordinator, to: point)
+        let target = centerPoint ?? YMKPoint(latitude: 55.751244, longitude: 37.618423)
+        applyState(on: mapView, coordinator: context.coordinator, center: target, pins: pins)
     }
 
-    // MARK: - Internal helpers
+    private func makeNativeMapView() -> YMKMapView? {
+        #if targetEnvironment(simulator)
+        // For Apple Silicon simulators MapKit recommends Vulkan-backed view.
+        return YMKMapView(frame: .zero, vulkanPreferred: true)
+        #else
+        return YMKMapView(frame: .zero)
+        #endif
+    }
 
-    private func updateMap(
+    private func applyState(
         on mapView: YMKMapView,
         coordinator: Coordinator,
-        to point: YMKPoint
+        center: YMKPoint,
+        pins: [YMKPoint]
     ) {
         let map = mapView.mapWindow.map
-        let position = YMKCameraPosition(
-            target: point,
-            zoom: 15,
-            azimuth: 0,
-            tilt: 0
-        )
-        let animation = YMKAnimation(type: .smooth, duration: 1.0)
+
+        // Камера
+        let position = YMKCameraPosition(target: center, zoom: 14, azimuth: 0, tilt: 0)
+        let animation = YMKAnimation(type: .smooth, duration: 0.8)
         map.move(with: position, animation: animation, cameraCallback: nil)
 
         let mapObjects = map.mapObjects
-        if let oldPlacemark = coordinator.placemark {
-            mapObjects.remove(with: oldPlacemark)
+
+        // Маркер центра (поиск)
+        if let old = coordinator.centerPlacemark {
+            mapObjects.remove(with: old)
         }
-        let placemark = mapObjects.addPlacemark(with: point)
-        coordinator.placemark = placemark
+        coordinator.centerPlacemark = mapObjects.addPlacemark(with: center)
+
+        // Пины объявлений
+        for old in coordinator.pinPlacemarks {
+            mapObjects.remove(with: old)
+        }
+        coordinator.pinPlacemarks.removeAll()
+
+        for p in pins {
+            let pm = mapObjects.addPlacemark(with: p)
+            coordinator.pinPlacemarks.append(pm)
+        }
     }
 }

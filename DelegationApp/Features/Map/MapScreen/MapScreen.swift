@@ -1,12 +1,7 @@
 import SwiftUI
 
-// MARK: - Экран "Карта"
-
 struct MapScreen: View {
     @StateObject private var vm: MapViewModel
-    @State private var showCreate = false
-
-    /// Режим отображения карты (настоящая карта / плейсхолдер).
     private let mapMode: MapDisplayMode
 
     init(
@@ -19,50 +14,31 @@ struct MapScreen: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Задний слой — Яндекс-карта на весь экран
             mapArea
-//                .background(Color.green)
-//                .cornerRadius(15)
 
-            // Верхний слой — поиск + ошибка + чипсы
             VStack(spacing: 5) {
-                // небольшой отступ от статус-бара
                 Spacer().frame(height: 50)
-
                 searchBar
-//                    .background(Color.red)
-                    .background(Color.clear)
-                    .cornerRadius(15)
                 errorLabel
-                    .background(Color.clear)
-                    .cornerRadius(15)
                 chipsRow
-                    .background(Color.clear)
-                    .cornerRadius(15)
-
                 Spacer()
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .ignoresSafeArea()
-            
+        }
+        .task {
+            await vm.reloadPins()
         }
     }
 
-    // MARK: - Сабвью
-
-    /// Поисковая строка.
     private var searchBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(Theme.ColorToken.textSecondary)
 
-            TextField(
-                "Введите адрес",
-                text: $vm.searchText,
-                onCommit: vm.performSearch
-            )
-            .textFieldStyle(.plain)
+            TextField("Введите адрес", text: $vm.searchText, onCommit: vm.performSearch)
+                .textFieldStyle(.plain)
 
             if !vm.searchText.isEmpty {
                 Button {
@@ -81,13 +57,11 @@ struct MapScreen: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        // карточка на «стеклянном» фоне поверх карты
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .softCardShadow()
     }
 
-    /// Сообщение об ошибке (если есть).
     private var errorLabel: some View {
         Group {
             if let message = vm.errorMessage {
@@ -99,7 +73,6 @@ struct MapScreen: View {
         }
     }
 
-    /// Горизонтальный список фильтров-чипсов.
     private var chipsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.m) {
@@ -109,25 +82,18 @@ struct MapScreen: View {
                         isSelected: Binding(
                             get: { vm.selected.contains(chip) },
                             set: { isOn in
-                                if isOn {
-                                    vm.selected.insert(chip)
-                                } else {
-                                    vm.selected.remove(chip)
-                                }
+                                if isOn { vm.selected.insert(chip) }
+                                else { vm.selected.remove(chip) }
                             }
                         )
                     )
                 }
             }
-            .padding(0)
         }
-        // важное изменение: НЕТ .background(Color.green)
-        // фон прозрачный → чипсы "висят" над картой
     }
 
-    /// Слой с картой.
     private var mapArea: some View {
-        MapCanvasView(centerPoint: $vm.centerPoint, mode: mapMode)
-            .ignoresSafeArea(edges: .top) // карта под всей версткой и под системными бары
+        MapCanvasView(centerPoint: $vm.centerPoint, pins: vm.pins, mode: mapMode)
+            .ignoresSafeArea(edges: .top)
     }
 }

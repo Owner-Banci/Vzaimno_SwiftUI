@@ -1,11 +1,18 @@
 import SwiftUI
 
 enum PreviewData {
-    static let container = AppContainer.preview
-    
-    static let chatsVM  = ChatsViewModel(service: MockChatService())
-    static let mapVM    = MapViewModel(service: MockTaskService())
-    static let routeVM  = RouteViewModel(service: MockTaskService())
+    @MainActor static var container: AppContainer { .preview }
+
+    static let chatsVM = ChatsViewModel(service: MockChatService())
+
+    @MainActor static var mapVM: MapViewModel {
+        MapViewModel(
+            service: MockTaskService(),
+            announcementService: MockAnnouncementService()
+        )
+    }
+
+    static let routeVM = RouteViewModel(service: MockTaskService())
     static let profileVM = ProfileViewModel(service: MockProfileService())
 }
 

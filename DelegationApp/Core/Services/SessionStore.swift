@@ -173,7 +173,10 @@ final class SessionStore: ObservableObject {
                 throw Self.TimeoutError()
             }
 
-            let result = try await group.next()!
+            guard let result = try await group.next() else {
+                group.cancelAll()
+                throw TimeoutError()
+            }
             group.cancelAll()
             return result
         }

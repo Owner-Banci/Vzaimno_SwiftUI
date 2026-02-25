@@ -16,15 +16,17 @@ enum APIEndpoint {
     // Announcements (Ads)
     case createAnnouncement
     case myAnnouncements
+    case publicAnnouncements
 
-    // Без ведущего "/" — безопасно для appendingPathComponent
     var path: String {
         switch self {
         case .register: return "auth/register"
-        case .login:    return "auth/login"
-        case .me:       return "me"
+        case .login: return "auth/login"
+        case .me: return "me"
+
         case .createAnnouncement: return "announcements"
-        case .myAnnouncements:    return "announcements/me"
+        case .myAnnouncements: return "announcements/me"
+        case .publicAnnouncements: return "announcements/public"
         }
     }
 
@@ -32,7 +34,7 @@ enum APIEndpoint {
         switch self {
         case .register, .login, .createAnnouncement:
             return .POST
-        case .me, .myAnnouncements:
+        case .me, .myAnnouncements, .publicAnnouncements:
             return .GET
         }
     }
