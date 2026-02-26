@@ -13,8 +13,10 @@ struct NewDeliveryAdFormScreen: View {
     let onFinish: (AnnouncementDTO) -> Void
 
     @State private var goContact: Bool = false
+    @State private var isValidating: Bool = false
     @State private var showValidationAlert: Bool = false
     @State private var validationText: String = ""
+    private let searchService = AddressSearchService()
 
     var body: some View {
         ScrollView {
@@ -138,15 +140,24 @@ struct NewDeliveryAdFormScreen: View {
             Text(validationText)
         }
         .safeAreaInset(edge: .bottom) {
-            CreateAdBottomButton(title: "Продолжить", accent: accent) {
-                let res = draft.validateForCurrentStep()
-                if res.ok {
+            CreateAdBottomButton(
+                title: isValidating ? "Проверяем адреса..." : "Продолжить",
+                accent: accent
+            ) {
+                guard !isValidating else { return }
+                Task { @MainActor in
+                    isValidating = true
+                    defer { isValidating = false }
+
+                    if let error = await draft.validateAndGeocodeMainStep(searchService: searchService) {
+                        validationText = error
+                        showValidationAlert = true
+                        return
+                    }
                     goContact = true
-                } else {
-                    validationText = res.message
-                    showValidationAlert = true
                 }
             }
+            .disabled(isValidating)
         }
     }
 

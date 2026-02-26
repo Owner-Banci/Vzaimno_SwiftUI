@@ -30,6 +30,13 @@ struct MapScreen: View {
         .task {
             await vm.reloadPins()
         }
+        .sheet(item: $vm.selectedAnnouncement, onDismiss: {
+            vm.clearSelection()
+        }) { announcement in
+            AnnouncementSheetView(announcement: announcement)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private var searchBar: some View {
@@ -93,7 +100,20 @@ struct MapScreen: View {
     }
 
     private var mapArea: some View {
-        MapCanvasView(centerPoint: $vm.centerPoint, pins: vm.pins, mode: mapMode)
+        MapCanvasView(
+            centerPoint: $vm.centerPoint,
+            pins: vm.pins,
+            selectedPinID: vm.selectedPinID,
+            routePolyline: vm.routePolyline,
+            shouldFitRoute: vm.shouldFitRoute,
+            onRouteFitted: vm.consumeRouteFitRequest,
+            onPinTap: { pinID in
+                Task { @MainActor in
+                    await vm.selectAnnouncement(pinID: pinID)
+                }
+            },
+            mode: mapMode
+        )
             .ignoresSafeArea(edges: .top)
     }
 }

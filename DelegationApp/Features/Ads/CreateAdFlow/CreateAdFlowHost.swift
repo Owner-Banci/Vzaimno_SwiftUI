@@ -18,9 +18,16 @@ struct CreateAdFlowHost: View {
     init(
         service: AnnouncementService,
         session: SessionStore,
+        searchService: AddressSearchService = AddressSearchService(),
         onCreated: @escaping (AnnouncementDTO) -> Void
     ) {
-        _vm = StateObject(wrappedValue: CreateAdFlowViewModel(service: service, session: session))
+        _vm = StateObject(
+            wrappedValue: CreateAdFlowViewModel(
+                service: service,
+                session: session,
+                searchService: searchService
+            )
+        )
         self.onCreated = onCreated
     }
 

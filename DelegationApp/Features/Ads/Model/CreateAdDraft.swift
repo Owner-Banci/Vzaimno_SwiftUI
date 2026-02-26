@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import YandexMapsMobile
 
 @MainActor
 final class CreateAdDraft: ObservableObject {
@@ -68,9 +69,11 @@ final class CreateAdDraft: ObservableObject {
     // MARK: - Delivery fields
     @Published var pickupAddress: String = ""
     @Published var dropoffAddress: String = ""
-    @Published var startDate: Date = .now
+    @Published var pickupPoint: YMKPoint?
+    @Published var dropoffPoint: YMKPoint?
+    @Published var startDate: Date = Date().addingTimeInterval(10 * 60)
     @Published var hasEndTime: Bool = false
-    @Published var endDate: Date = .now
+    @Published var endDate: Date = Date().addingTimeInterval(40 * 60)
 
     @Published var cargoLength: String = ""
     @Published var cargoWidth: String = ""
@@ -82,6 +85,7 @@ final class CreateAdDraft: ObservableObject {
 
     // MARK: - Help fields
     @Published var helpAddress: String = ""
+    @Published var helpPoint: YMKPoint?
 
     // MARK: - Notes + future hooks
     @Published var notes: String = ""
@@ -98,26 +102,90 @@ final class CreateAdDraft: ObservableObject {
     // MARK: - Audience
     @Published var audience: Audience = .both
 
+    private var pickupAddressSnapshot: String?
+    private var dropoffAddressSnapshot: String?
+    private var helpAddressSnapshot: String?
+
     // MARK: - Validation
-    func validateForCurrentStep() -> (ok: Bool, message: String) {
-        guard let category else { return (false, "Выберите категорию") }
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return (false, "Заполните название объявления")
-        }
+    func validateMainStepSync() -> String? {
+        guard let category else { return "Выберите категорию" }
+
+        if let e = AdValidators.validateTitle(title) { return e }
+        if let e = AdValidators.validateBudget(budget) { return e }
+        if let e = AdValidators.validateTimeWindow(
+            startDate: startDate,
+            hasEndTime: hasEndTime,
+            endDate: endDate
+        ) { return e }
+
         switch category {
         case .delivery:
-            if pickupAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return (false, "Укажите адрес забора")
-            }
-            if dropoffAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return (false, "Укажите адрес доставки")
-            }
+            if let e = AdValidators.validateAddress(pickupAddress, fieldName: "Адрес забора") { return e }
+            if let e = AdValidators.validateAddress(dropoffAddress, fieldName: "Адрес доставки") { return e }
+            if let e = AdValidators.validateDifferentAddresses(pickupAddress, dropoffAddress) { return e }
+            if let e = AdValidators.validateDimension(cargoLength, fieldName: "Длина", max: 85) { return e }
+            if let e = AdValidators.validateDimension(cargoWidth, fieldName: "Ширина", max: 57) { return e }
+            if let e = AdValidators.validateDimension(cargoHeight, fieldName: "Высота", max: 57) { return e }
+            if let e = AdValidators.validateFloor(floor) { return e }
         case .help:
-            if helpAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return (false, "Укажите адрес")
+            if let e = AdValidators.validateAddress(helpAddress, fieldName: "Адрес") { return e }
+        }
+
+        return nil
+    }
+
+    func validateAndGeocodeMainStep(searchService: AddressSearchService) async -> String? {
+        if let e = validateMainStepSync() { return e }
+
+        guard let category else { return "Выберите категорию" }
+
+        switch category {
+        case .delivery:
+            let pickupNormalized = AdValidators.normalizedAddress(pickupAddress)
+            let dropoffNormalized = AdValidators.normalizedAddress(dropoffAddress)
+
+            if pickupAddressSnapshot != pickupNormalized {
+                pickupPoint = await searchService.searchAddress(pickupNormalized)
+                pickupAddressSnapshot = pickupPoint == nil ? nil : pickupNormalized
+            }
+            guard pickupPoint != nil else {
+                return "Адрес забора не найден. Уточните адрес"
+            }
+
+            if dropoffAddressSnapshot != dropoffNormalized {
+                dropoffPoint = await searchService.searchAddress(dropoffNormalized)
+                dropoffAddressSnapshot = dropoffPoint == nil ? nil : dropoffNormalized
+            }
+            guard dropoffPoint != nil else {
+                return "Адрес доставки не найден. Уточните адрес"
+            }
+
+        case .help:
+            let helpNormalized = AdValidators.normalizedAddress(helpAddress)
+            if helpAddressSnapshot != helpNormalized {
+                helpPoint = await searchService.searchAddress(helpNormalized)
+                helpAddressSnapshot = helpPoint == nil ? nil : helpNormalized
+            }
+            guard helpPoint != nil else {
+                return "Адрес не найден. Уточните адрес"
             }
         }
-        return (true, "")
+
+        return nil
+    }
+
+    func validateContactStep() -> String? {
+        let phone = AdValidators.validateOptionalPhone(contactPhone)
+        if let e = phone.error { return e }
+        contactPhone = phone.normalized ?? ""
+        contactName = AdValidators.trimmed(contactName)
+        return nil
+    }
+
+    func validateForSubmit(searchService: AddressSearchService) async -> String? {
+        if let e = await validateAndGeocodeMainStep(searchService: searchService) { return e }
+        if let e = validateContactStep() { return e }
+        return nil
     }
 
     // MARK: - Mapping to request
@@ -125,51 +193,95 @@ final class CreateAdDraft: ObservableObject {
         let iso = ISO8601DateFormatter()
 
         var data: [String: JSONValue] = [:]
+        let titleTrimmed = AdValidators.trimmed(title)
 
         data["category"] = .string(category?.rawValue ?? "")
-        data["budget"] = budget.isEmpty ? .null : .string(budget)
+        data["budget"] = jsonOptionalDecimal(budget)
 
-        data["contact_name"] = contactName.isEmpty ? .null : .string(contactName)
-        data["contact_phone"] = contactPhone.isEmpty ? .null : .string(contactPhone)
+        let contactNameTrimmed = AdValidators.trimmed(contactName)
+        data["contact_name"] = contactNameTrimmed.isEmpty ? .null : .string(contactNameTrimmed)
+        if let phoneNormalized = AdValidators.validateOptionalPhone(contactPhone).normalized {
+            data["contact_phone"] = .string(phoneNormalized)
+        } else {
+            data["contact_phone"] = .null
+        }
         data["contact_method"] = .string(contactMethod.rawValue)
 
         data["audience"] = .string(audience.rawValue)
 
-        data["notes"] = notes.isEmpty ? .null : .string(notes)
+        let notesTrimmed = AdValidators.trimmed(notes)
+        data["notes"] = notesTrimmed.isEmpty ? .null : .string(notesTrimmed)
         data["media_local_identifiers"] = .array(mediaLocalIdentifiers.map { .string($0) })
         data["ai_hints"] = .array(aiHints.map { .string($0) })
 
         if let category {
             switch category {
             case .delivery:
-                data["pickup_address"] = .string(pickupAddress)
-                data["dropoff_address"] = .string(dropoffAddress)
+                let pickup = AdValidators.normalizedAddress(pickupAddress)
+                let dropoff = AdValidators.normalizedAddress(dropoffAddress)
+
+                data["pickup_address"] = .string(pickup)
+                data["dropoff_address"] = .string(dropoff)
                 data["start_at"] = .string(iso.string(from: startDate))
                 data["has_end_time"] = .bool(hasEndTime)
                 data["end_at"] = hasEndTime ? .string(iso.string(from: endDate)) : .null
 
-                data["cargo_length"] = cargoLength.isEmpty ? .null : .string(cargoLength)
-                data["cargo_width"] = cargoWidth.isEmpty ? .null : .string(cargoWidth)
-                data["cargo_height"] = cargoHeight.isEmpty ? .null : .string(cargoHeight)
+                data["cargo_length"] = jsonOptionalDecimal(cargoLength)
+                data["cargo_width"] = jsonOptionalDecimal(cargoWidth)
+                data["cargo_height"] = jsonOptionalDecimal(cargoHeight)
 
-                data["floor"] = floor.isEmpty ? .null : .string(floor)
+                data["floor"] = jsonOptionalInt(floor)
                 data["has_elevator"] = .bool(hasElevator)
                 data["need_loader"] = .bool(needLoader)
 
+                if let pickupPoint {
+                    let jsonPoint = Self.jsonPoint(pickupPoint)
+                    data["pickup_point"] = jsonPoint
+                    data["point"] = jsonPoint
+                }
+                if let dropoffPoint {
+                    data["dropoff_point"] = Self.jsonPoint(dropoffPoint)
+                }
+
             case .help:
-                data["address"] = .string(helpAddress)
+                let address = AdValidators.normalizedAddress(helpAddress)
+                data["address"] = .string(address)
                 data["start_at"] = .string(iso.string(from: startDate))
                 data["has_end_time"] = .bool(hasEndTime)
                 data["end_at"] = hasEndTime ? .string(iso.string(from: endDate)) : .null
+
+                if let helpPoint {
+                    let jsonPoint = Self.jsonPoint(helpPoint)
+                    data["help_point"] = jsonPoint
+                    data["point"] = jsonPoint
+                }
             }
         }
 
         let categoryRaw = category?.rawValue ?? "unknown"
         return CreateAnnouncementRequest(
             category: categoryRaw,
-            title: title,
+            title: titleTrimmed,
             status: "active",
             data: data
         )
+    }
+
+    private func jsonOptionalDecimal(_ raw: String) -> JSONValue {
+        guard let value = AdValidators.parseDecimal(raw) else { return .null }
+        return .double(value)
+    }
+
+    private func jsonOptionalInt(_ raw: String) -> JSONValue {
+        let trimmed = AdValidators.trimmed(raw)
+        guard let value = Int(trimmed) else { return .null }
+        return .int(value)
+    }
+
+    private static func jsonPoint(_ point: YMKPoint) -> JSONValue {
+        .object([
+            "lat": .double(point.latitude),
+            "lon": .double(point.longitude),
+        ])
     }
 }

@@ -33,7 +33,7 @@ struct AdAudienceScreen: View {
                 title: vm.isSubmitting ? "Публикуем..." : "Опубликовать",
                 accent: accent
             ) {
-                Task {
+                Task { @MainActor in
                     let created = await vm.submit(draft: draft)
                     if let created {
                         onFinish(created)

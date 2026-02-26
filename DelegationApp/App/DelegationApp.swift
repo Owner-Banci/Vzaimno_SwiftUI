@@ -3,7 +3,7 @@ import YandexMapsMobile
 
 @main
 struct DelegationApp: App {
-    @StateObject private var container = AppContainer.preview
+    @StateObject private var container = AppContainer.live
 
 
     init() {

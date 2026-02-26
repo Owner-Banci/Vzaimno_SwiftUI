@@ -30,6 +30,18 @@ final class AddressSearchService {
         _ text: String,
         completion: @escaping (YMKPoint?) -> Void
     ) {
+        // Yandex Search API must be called on UI thread.
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    completion(nil)
+                    return
+                }
+                self.searchAddress(text, completion: completion)
+            }
+            return
+        }
+
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             completion(nil)
@@ -56,25 +68,35 @@ final class AddressSearchService {
             geometry: geometry,
             searchOptions: options
         ) { [weak self] response, error in
-            defer { self?.searchSession = nil }
+            DispatchQueue.main.async {
+                self?.searchSession = nil
 
-            if let error {
-                print("Search error: \(error)")
-                completion(nil)
-                return
+                if let error {
+                    print("Search error: \(error)")
+                    completion(nil)
+                    return
+                }
+
+                guard
+                    let collection = response?.collection,
+                    let firstItem = collection.children.first,
+                    let obj = firstItem.obj,
+                    let point = obj.geometry.first?.point
+                else {
+                    completion(nil)
+                    return
+                }
+
+                completion(point)
             }
+        }
+    }
 
-            guard
-                let collection = response?.collection,
-                let firstItem = collection.children.first,
-                let obj = firstItem.obj,
-                let point = obj.geometry.first?.point
-            else {
-                completion(nil)
-                return
+    func searchAddress(_ text: String) async -> YMKPoint? {
+        await withCheckedContinuation { continuation in
+            searchAddress(text) { point in
+                continuation.resume(returning: point)
             }
-
-            completion(point)
         }
     }
 }

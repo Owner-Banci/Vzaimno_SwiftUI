@@ -14,15 +14,28 @@ final class CreateAdFlowViewModel: ObservableObject {
 
     private let service: AnnouncementService
     private let session: SessionStore
+    private let searchService: AddressSearchService
 
-    init(service: AnnouncementService, session: SessionStore) {
+    init(
+        service: AnnouncementService,
+        session: SessionStore,
+        searchService: AddressSearchService = AddressSearchService()
+    ) {
         self.service = service
         self.session = session
+        self.searchService = searchService
     }
 
     func submit(draft: CreateAdDraft) async -> AnnouncementDTO? {
+        errorText = nil
+
         guard let token = session.token else {
             errorText = "Нет токена сессии"
+            return nil
+        }
+
+        if let validationError = await draft.validateForSubmit(searchService: searchService) {
+            errorText = validationError
             return nil
         }
 

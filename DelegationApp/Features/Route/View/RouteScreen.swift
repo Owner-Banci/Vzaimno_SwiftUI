@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum PreviewData {
-    @MainActor static var container: AppContainer { .preview }
+    @MainActor static var container: AppContainer { .live }
 
     static let chatsVM = ChatsViewModel(service: MockChatService())
 

@@ -29,11 +29,11 @@ final class AppContainer: ObservableObject {
 
 extension AppContainer {
     @MainActor
-    static let preview = AppContainer(
-        taskService: MockTaskService(),
-        chatService: MockChatService(),
-        profileService: MockProfileService(),
-        announcementService: MockAnnouncementService(),
+    static let live = AppContainer(
+        taskService: MockTaskService(),          // пока можно оставить мок
+        chatService: MockChatService(),          // пока мок
+        profileService: MockProfileService(),    // пока мок
+        announcementService: NetworkAnnouncementService(), // ВАЖНО: сеть
         authService: NetworkAuthService()
     )
 }

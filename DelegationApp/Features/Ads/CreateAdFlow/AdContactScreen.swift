@@ -13,6 +13,8 @@ struct AdContactScreen: View {
     let onFinish: (AnnouncementDTO) -> Void
 
     @State private var goAudience: Bool = false
+    @State private var showValidationAlert: Bool = false
+    @State private var validationText: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -68,11 +70,21 @@ struct AdContactScreen: View {
             }
 
             CreateAdBottomButton(title: "Продолжить", accent: accent) {
-                goAudience = true
+                if let error = draft.validateContactStep() {
+                    validationText = error
+                    showValidationAlert = true
+                } else {
+                    goAudience = true
+                }
             }
         }
         .navigationBarBackButtonHidden(true)
         .toolbar { backToolbar }
+        .alert("Проверьте данные", isPresented: $showValidationAlert) {
+            Button("Ок", role: .cancel) {}
+        } message: {
+            Text(validationText)
+        }
         .navigationDestination(isPresented: $goAudience) {
             AdAudienceScreen(
                 draft: draft,
