@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class ProfileViewModel: ObservableObject {
+final class ProfileReviewsListViewModel: ObservableObject {
     enum ViewState: Equatable {
         case idle
         case loading
@@ -10,9 +10,7 @@ final class ProfileViewModel: ObservableObject {
     }
 
     @Published private(set) var state: ViewState = .idle
-    @Published private(set) var profile: UserProfile?
     @Published private(set) var reviews: [UserProfileReview] = []
-    @Published var darkMode: Bool = false
 
     private let service: ProfileService
     private let session: SessionStore
@@ -24,34 +22,23 @@ final class ProfileViewModel: ObservableObject {
 
     func loadIfNeeded() async {
         guard case .idle = state else { return }
-        await load(showLoadingState: true)
+        await load()
     }
 
     func reload() async {
-        await load(showLoadingState: profile == nil)
+        await load()
     }
 
-    func didUpdateProfile(_ updatedProfile: UserProfile) {
-        profile = updatedProfile
-        state = .loaded
-    }
-
-    private func load(showLoadingState: Bool) async {
+    private func load() async {
         guard let token = session.token else {
             state = .error("Сессия истекла. Войдите снова.")
             return
         }
 
-        if showLoadingState {
-            state = .loading
-        }
+        state = .loading
 
         do {
-            async let meProfile = service.fetchMeProfile(token: token)
-            async let myReviews = service.fetchMyReviews(token: token, limit: 2, offset: 0)
-            let (profile, reviews) = try await (meProfile, myReviews)
-
-            self.profile = profile
+            let reviews = try await service.fetchMyReviews(token: token, limit: 50, offset: 0)
             self.reviews = reviews
             self.state = .loaded
         } catch {

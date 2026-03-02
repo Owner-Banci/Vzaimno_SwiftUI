@@ -9,6 +9,13 @@ struct APIClient {
             message.isEmpty ? "HTTP \(statusCode)" : message
         }
     }
+    
+    //---------------------
+    struct UploadFileItem {
+        let data: Data
+        let filename: String
+        let mimeType: String
+    }
 
     // FastAPI error: {"detail": "..."} или {"detail":[{"loc":...,"msg":...}]}
     private struct FastAPIError: Decodable {
@@ -117,4 +124,56 @@ struct APIClient {
     ) async throws -> T {
         try await request(endpoint, body: Optional<Int>.none, token: token)
     }
+    
+    //-------------
+    private static func makeMultipartBody(files: [UploadFileItem], boundary: String, fieldName: String) -> Data {
+        var body = Data()
+        let lineBreak = "\r\n"
+
+        for f in files {
+            body.append("--\(boundary)\(lineBreak)".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(f.filename)\"\(lineBreak)".data(using: .utf8)!)
+            body.append("Content-Type: \(f.mimeType)\(lineBreak)\(lineBreak)".data(using: .utf8)!)
+            body.append(f.data)
+            body.append(lineBreak.data(using: .utf8)!)
+        }
+
+        body.append("--\(boundary)--\(lineBreak)".data(using: .utf8)!)
+        return body
+    }
+
+    func upload<T: Decodable>(
+        _ endpoint: APIEndpoint,
+        token: String,
+        files: [UploadFileItem],
+        fieldName: String = "files"
+    ) async throws -> T {
+        var req = URLRequest(url: endpoint.url)
+        req.httpMethod = endpoint.method.rawValue
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let body = Self.makeMultipartBody(files: files, boundary: boundary, fieldName: fieldName)
+
+        let (data, response) = try await session.upload(for: req, from: body)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError(statusCode: -1, message: "Нет HTTP ответа")
+        }
+
+        if (200..<300).contains(http.statusCode) {
+            return try JSONDecoder().decode(T.self, from: data)
+        }
+
+        if let apiErr = try? JSONDecoder().decode(FastAPIError.self, from: data) {
+            throw APIError(statusCode: http.statusCode, message: apiErr.humanMessage)
+        }
+        let raw = String(data: data, encoding: .utf8) ?? ""
+        throw APIError(statusCode: http.statusCode, message: raw)
+    }
+    
 }
+
+
+

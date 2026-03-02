@@ -1,28 +1,50 @@
-//
-//  MockProfileService.swift
-//  iCuno test
-//
-//  Created by maftuna murtazaeva on 07.11.2025.
-//
-
 import Foundation
 
 final class MockProfileService: ProfileService {
-    func loadProfile() -> Profile {
-        .init(name: "Алексей Иванов",
-              phone: "+7 999 123-45-67",
-              rating: 4.9,
-              completed: 127,
-              cancelled: 3)
+    private let mockReviews: [UserProfileReview] = [
+        UserProfileReview(
+            id: "maria-review",
+            authorName: "Мария К.",
+            stars: 5,
+            text: "Отличный исполнитель! Всё сделал быстро и качественно. Рекомендую!",
+            createdAt: Calendar.current.date(byAdding: .day, value: -2, to: .now) ?? .now
+        ),
+        UserProfileReview(
+            id: "dmitry-review",
+            authorName: "Дмитрий С.",
+            stars: 5,
+            text: "Очень доволен! Приехал раньше срока, всё аккуратно.",
+            createdAt: Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now
+        ),
+    ]
+
+    func fetchMeProfile(token: String) async throws -> UserProfile {
+        UserProfile(
+            userID: "mock-user-id",
+            email: "alexey@example.com",
+            phone: nil,
+            displayName: "Алексей Иванов",
+            bio: "Помогаю с доставкой и бытовыми задачами.",
+            city: "Москва",
+            preferredAddress: "Москва, ул. Тверская, 1",
+            homeLocation: GeoPoint(latitude: 55.751244, longitude: 37.618423),
+            stats: ProfileStats(
+                ratingAverage: 4.9,
+                ratingCount: 127,
+                completedCount: 127,
+                cancelledCount: 3
+            ),
+            createdAt: .now
+        )
     }
-    func loadReviews() -> [Review] {
-        [
-            .init(authorInitial: "М", authorName: "Мария К.",
-                  text: "Отличный исполнитель! Всё сделал быстро и качественно. Рекомендую!",
-                  ago: "2 дня назад", stars: 5),
-            .init(authorInitial: "Д", authorName: "Дмитрий С.",
-                  text: "Очень доволен! Приехал раньше срока, всё аккуратно.",
-                  ago: "неделю назад", stars: 5)
-        ]
+
+    func updateMyProfile(token: String, fields: EditableProfileFields) async throws -> EditableProfileFields {
+        fields
+    }
+
+    func fetchMyReviews(token: String, limit: Int, offset: Int) async throws -> [UserProfileReview] {
+        let start = max(0, offset)
+        let slice = mockReviews.dropFirst(start).prefix(max(0, limit))
+        return Array(slice)
     }
 }

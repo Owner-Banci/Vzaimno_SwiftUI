@@ -1,194 +1,278 @@
-////
-////  ProfileEditScreen.swift
-////  iCuno test
-////
-////  Created by maftuna murtazaeva on 23.01.2026.
-////
-//
-//import SwiftUI
-//import PhotosUI
-//import Foundation
-//
-//struct UserSettingsView: View {
-//    @State private var selectedItem: PhotosPickerItem? = nil
-//    @State private var showAgePicker = false
-//    @State private var selectedImage: UIImage? = nil
-//
-//    var body: some View {
-//        VStack {
-//            HStack { Spacer(); saveButton }
-//            ScrollView {
-//
-//                profileImage
-//
-//                nicknameSection
-//                randomNameButton.padding(.bottom, 20)
-//
-//                bioSection.padding(.bottom, 20)
-//                ageSection.padding(.bottom, 20)
-//                
-//
-//                genderPicker.padding(.bottom, 20)
-//                Spacer()
-//            }
-//        }
-////        .onAppear { viewModel.onAppear() }
-////        .alert("Сохранено!", isPresented: $viewModel.showSaveBanner) {
-////            Button("OK", role: .cancel) {}
-////        }
-////        .sheet(isPresented: $showAgePicker) { agePicker }
-//    }
-//
-//    private var saveButton: some View {
-//        Button("Сохранить") { }
-//            .foregroundColor(.red)
-//            .padding(.horizontal, 25)
-//    }
-//
-//    
-//    var genderPicker: some View {
-//        VStack(alignment: .leading) {
-//            Text("Ваш пол: Мужской")
-//            Text("Укажите свой пол для анкеты")
-//                .font(.footnote)
-//
-//            Picker("", selection: Binding(
-//                get: { viewModel.gender },
-//                set: { viewModel.genderSelected($0) }
-//            )) {
-//                ForEach(Gender1.allCases) { g in
-//                    Text(g.rawValue).tag(g)
-//                }
-//            }
-//            .pickerStyle(.segmented)
-//        }
-//        .padding(.horizontal, 25)
-//    }
-//    
-//    var profileImage: some View {
-//        VStack {
-//            if let image = viewModel.image {
-//                Image(uiImage: image)
-//                    .resizable()
-//                    .frame(width: 130, height: 130)
-//                    .cornerRadius(65)
-//                    .padding(.top, 25)
-//            } else {
-//                Text("Изображение не выбрано")
-//                    .foregroundColor(.gray)
-//                    .padding()
-//            }
-//
-//            PhotosPicker(
-//                selection: $selectedItem,
-//                matching: .images,
-//                photoLibrary: .shared()
-//            ) {
-//                Text("Изменить фотографию")
-//                    .foregroundColor(Color(.label))
-//            }
-//            .onChange(of: selectedItem) { newItem in
-//                Task {
-//                    await viewModel.handleImageSelection(newItem)
-//                }
-//            }
-//        }
-//        .padding()
-//    }
-//
-//
-//    private var nicknameSection: some View {
-//        VStack(alignment: .leading) {
-//            Text("Никнейм: \(viewModel.name)")
-//            Text("Никнейм будет отображён в анкете")
-//                .font(.footnote)
-//            TextField("Введите никнейм…",
-//                      text: Binding(get: { viewModel.name },
-//                                     set: viewModel.nameChanged))
-//                .textFieldStyle(.roundedBorder)
-//                .overlay(RoundedRectangle(cornerRadius: 20)
-//                    .stroke(Color(.label).opacity(0.4), lineWidth: 1))
-//        }
-//        .padding(.horizontal, 25)
-//    }
-//    private var randomNameButton: some View {
-//        Button("СЛУЧАЙНЫЙ НИКНЕЙМ") { viewModel.nicknameTapped() }
-//            .frame(maxWidth: .infinity)
-//            .padding(.vertical, 10)
-//            .background(Color(.systemGroupedBackground))
-//            .cornerRadius(20)
-//            .overlay(RoundedRectangle(cornerRadius: 20)
-//                .stroke(Color(.label).opacity(0.4), lineWidth: 1))
-//            .padding(.horizontal, 25)
-//            .foregroundColor(Color(.label))
-//    }
-//
-//
-//    private var bioSection: some View {
-//        VStack(alignment: .leading) {
-//            Text("О себе")
-//            Text("Напиши пару слов о себе, чтобы заинтересовать собеседника")
-//                .font(.footnote)
-//            TextField("О себе",
-//                      text: Binding(get: { viewModel.bio },
-//                                     set: viewModel.bioChanged))
-//                .textFieldStyle(.roundedBorder)
-//                .overlay(RoundedRectangle(cornerRadius: 20)
-//                    .stroke(Color(.label).opacity(0.4), lineWidth: 1))
-//        }
-//        .padding(.horizontal, 25)
-//    }
-//
-//    
-//    private var ageSection: some View {
-//        VStack(alignment: .leading) {
-//            Text("Ваш возраст: \(viewModel.age)")
-//            Text("Укажите свой возраст для анкеты")
-//                .font(.footnote)
-//            Button("УКАЖИТЕ ВОЗРАСТ") { showAgePicker = true }
-//                .frame(maxWidth: .infinity)
-//                .padding(.vertical, 10)
-//                .background(Color(.systemGroupedBackground))
-//                .cornerRadius(20)
-//                .overlay(RoundedRectangle(cornerRadius: 20)
-//                    .stroke(Color(.label).opacity(0.4), lineWidth: 1))
-//                .foregroundColor(Color(.label))
-//        }
-//        .padding(.horizontal, 25)
-//    }
-//    
-//    private var agePicker: some View {
-//        VStack(spacing: 0) {
-//            Text("Выберите ваш возраст")
-//                .font(.headline)
-//                .padding()
-//                .frame(maxWidth: .infinity)
-//                .background(Color(.systemGray6))
-//            Divider()
-//            Picker("Возраст", selection: Binding(
-//                get: { viewModel.age },
-//                set: viewModel.ageSelected
-//            )) {
-//                ForEach(10..<100, id: \.self) { Text("\($0)").tag($0) }
-//            }
-//            .pickerStyle(.wheel)
-//            .labelsHidden()
-//            .frame(height: 150)
-//            Divider()
-//            Button("OK") { showAgePicker = false }
-//                .frame(maxWidth: .infinity)
-//        }
-//        .background(Color(.systemBackground))
-//        .cornerRadius(16).padding()
-//
-//
-//    }
-//}
-//
-//
-//
-//
-//
-////#Preview {
-////    UserSettingsModule.build()
-////}
+import SwiftUI
+
+struct ProfileEditScreen: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var vm: EditProfileViewModel
+
+    init(
+        profile: UserProfile,
+        service: ProfileService,
+        session: SessionStore,
+        onSaved: @escaping (UserProfile) -> Void
+    ) {
+        _vm = StateObject(
+            wrappedValue: EditProfileViewModel(
+                profile: profile,
+                service: service,
+                session: session,
+                onSaved: onSaved
+            )
+        )
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: Theme.Spacing.l) {
+                identitySection
+                aboutSection
+                locationSection
+                statsSection
+                if let formError = vm.formError {
+                    ErrorBanner(message: formError)
+                }
+                logoutSection
+            }
+            .padding(.horizontal)
+            .padding(.top, 16)
+            .padding(.bottom, 32)
+        }
+        .background(Theme.ColorToken.milk.ignoresSafeArea())
+        .navigationTitle("Редактировать профиль")
+        .navigationBarTitleDisplayMode(.inline)
+        .interactiveDismissDisabled(vm.isBusy)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Закрыть") {
+                    dismiss()
+                }
+                .disabled(vm.isBusy)
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button {
+                    Task {
+                        if await vm.save() {
+                            dismiss()
+                        }
+                    }
+                } label: {
+                    if vm.isSaving {
+                        ProgressView()
+                    } else {
+                        Text("Сохранить")
+                            .fontWeight(.semibold)
+                    }
+                }
+                .disabled(vm.isBusy)
+            }
+        }
+        .alert("Вы уверены? Нужно будет войти снова.", isPresented: $vm.isLogoutConfirmationPresented) {
+            Button("Отмена", role: .cancel) { }
+            Button("Выйти", role: .destructive) {
+                Task { await vm.logout() }
+            }
+        }
+    }
+
+    private var identitySection: some View {
+        FormSectionCard(title: "Основное") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Имя")
+                    .font(.system(size: 14, weight: .semibold))
+
+                TextField("Введите имя", text: $vm.displayName)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled(true)
+                    .fieldStyle()
+
+                ValidationText(message: vm.displayNameError)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(vm.contactTitle)
+                    .font(.system(size: 14, weight: .semibold))
+
+                Text(vm.contactValue)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Radius.m)
+                            .fill(Theme.ColorToken.milk)
+                    )
+
+                Text(vm.contactCaption)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.ColorToken.textSecondary)
+            }
+        }
+    }
+
+    private var aboutSection: some View {
+        FormSectionCard(title: "О себе") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Город")
+                    .font(.system(size: 14, weight: .semibold))
+
+                TextField("Например, Москва", text: $vm.city)
+                    .textInputAutocapitalization(.words)
+                    .fieldStyle()
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Описание")
+                        .font(.system(size: 14, weight: .semibold))
+                    Spacer()
+                    Text(vm.bioCounterText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.ColorToken.textSecondary)
+                }
+
+                TextEditor(text: $vm.bio)
+                    .frame(minHeight: 120)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Radius.m)
+                            .strokeBorder(Theme.ColorToken.shadow, lineWidth: 1)
+                            .background(
+                                RoundedRectangle(cornerRadius: Theme.Radius.m)
+                                    .fill(Theme.ColorToken.white)
+                            )
+                    )
+
+                ValidationText(message: vm.bioError)
+            }
+        }
+    }
+
+    private var locationSection: some View {
+        FormSectionCard(title: "Самый удобный адрес") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Самый удобный адрес")
+                    .font(.system(size: 14, weight: .semibold))
+
+                TextField("Например, Москва, ул. Тверская, 1", text: $vm.preferredAddress, axis: .vertical)
+                    .lineLimit(2...4)
+                    .fieldStyle()
+            }
+
+            Text("Укажите адрес, с которого вам удобнее всего взаимодействовать с исполнителем или заказчиком.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.ColorToken.textSecondary)
+
+            ValidationText(message: vm.preferredAddressError)
+        }
+    }
+
+    private var statsSection: some View {
+        FormSectionCard(title: "Статистика") {
+            ReadOnlyStatRow(title: "Рейтинг", value: vm.stats.ratingAverage.formatted(.number.precision(.fractionLength(1))))
+            ReadOnlyStatRow(title: "Количество оценок", value: "\(vm.stats.ratingCount)")
+            ReadOnlyStatRow(title: "Выполнено", value: "\(vm.stats.completedCount)")
+            ReadOnlyStatRow(title: "Отменено", value: "\(vm.stats.cancelledCount)")
+        }
+    }
+
+    private var logoutSection: some View {
+        Button(role: .destructive) {
+            vm.isLogoutConfirmationPresented = true
+        } label: {
+            HStack {
+                if vm.isLoggingOut {
+                    ProgressView()
+                }
+                Text("Выйти из аккаунта")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(.bordered)
+        .tint(.red)
+        .disabled(vm.isBusy)
+        .padding(.top, 4)
+    }
+}
+
+private struct FormSectionCard<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.ColorToken.textSecondary)
+
+            VStack(alignment: .leading, spacing: 16) {
+                content
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.l)
+                    .fill(Theme.ColorToken.white)
+            )
+            .softCardShadow()
+        }
+    }
+}
+
+private struct ValidationText: View {
+    let message: String?
+
+    var body: some View {
+        if let message {
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundStyle(.red)
+        }
+    }
+}
+
+private struct ErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(.system(size: 14))
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.m)
+                    .fill(Color.red.opacity(0.08))
+            )
+    }
+}
+
+private struct ReadOnlyStatRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .font(.system(size: 15, weight: .semibold))
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private extension View {
+    func fieldStyle() -> some View {
+        self
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.m)
+                    .strokeBorder(Theme.ColorToken.shadow, lineWidth: 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Radius.m)
+                            .fill(Theme.ColorToken.white)
+                    )
+            )
+    }
+}

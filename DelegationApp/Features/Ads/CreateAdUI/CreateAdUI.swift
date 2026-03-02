@@ -68,12 +68,20 @@ struct CreateAdTextField: View {
     let placeholder: String
     @Binding var text: String
     var keyboard: UIKeyboardType = .default
+    var mark: CreateAdDraft.DraftModerationMark? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                if let mark {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(mark.severity.color)
+                }
+            }
 
             TextField(placeholder, text: $text)
                 .keyboardType(keyboard)
@@ -136,12 +144,20 @@ struct CreateAdTextArea: View {
     let label: String
     let placeholder: String
     @Binding var text: String
+    var mark: CreateAdDraft.DraftModerationMark? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                if let mark {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(mark.severity.color)
+                }
+            }
 
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
@@ -150,7 +166,6 @@ struct CreateAdTextArea: View {
                         .padding(.top, 10)
                         .padding(.leading, 4)
                 }
-
                 TextEditor(text: $text)
                     .frame(minHeight: 110)
                     .scrollContentBackground(.hidden)

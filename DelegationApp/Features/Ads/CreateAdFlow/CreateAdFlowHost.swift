@@ -1,16 +1,9 @@
-//
-//  CreateAdFlowHost.swift
-//  iCuno test
-//
-//  Created by maftuna murtazaeva on 18.02.2026.
-//
-
 import SwiftUI
 
 struct CreateAdFlowHost: View {
     @Environment(\.dismiss) private var dismiss
 
-    @StateObject private var draft = CreateAdDraft()
+    @StateObject private var draft: CreateAdDraft
     @StateObject private var vm: CreateAdFlowViewModel
 
     let onCreated: (AnnouncementDTO) -> Void
@@ -19,13 +12,17 @@ struct CreateAdFlowHost: View {
         service: AnnouncementService,
         session: SessionStore,
         searchService: AddressSearchService = AddressSearchService(),
-        onCreated: @escaping (AnnouncementDTO) -> Void
+        prefilledDraft: CreateAdDraft? = nil,
+        onCreated: @escaping (AnnouncementDTO) -> Void,
+        onPublishCompletion: @escaping AnnouncementPublishCompletion = { _, _ in }
     ) {
+        _draft = StateObject(wrappedValue: prefilledDraft ?? CreateAdDraft())
         _vm = StateObject(
             wrappedValue: CreateAdFlowViewModel(
                 service: service,
                 session: session,
-                searchService: searchService
+                searchService: searchService,
+                publishCompletion: onPublishCompletion
             )
         )
         self.onCreated = onCreated

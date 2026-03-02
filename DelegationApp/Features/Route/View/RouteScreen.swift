@@ -13,7 +13,6 @@ enum PreviewData {
     }
 
     static let routeVM = RouteViewModel(service: MockTaskService())
-    static let profileVM = ProfileViewModel(service: MockProfileService())
 }
 
 struct RouteScreen: View {

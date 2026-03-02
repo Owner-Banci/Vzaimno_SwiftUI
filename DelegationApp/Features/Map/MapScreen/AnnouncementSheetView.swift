@@ -17,6 +17,9 @@ struct AnnouncementSheetView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if announcement.previewImageURL != nil {
+                    AnnouncementGalleryView(announcement: announcement, height: 220, cornerRadius: 22)
+                }
                 header
                 addressSection
                 timeSection
@@ -96,6 +99,11 @@ struct AnnouncementSheetView: View {
 
                     valueRow("Лифт", value: bool("has_elevator") == true ? "Есть" : "Нет")
                     valueRow("Грузчик", value: bool("need_loader") == true ? "Нужен" : "Не нужен")
+                    valueRow("Фото", value: announcement.imageURLs.isEmpty ? "Не прикреплено" : "Прикреплено: \(announcement.imageURLs.count)")
+                }
+            } else {
+                SectionCard(title: "Детали") {
+                    valueRow("Фото", value: announcement.imageURLs.isEmpty ? "Не прикреплено" : "Прикреплено: \(announcement.imageURLs.count)")
                 }
             }
         }

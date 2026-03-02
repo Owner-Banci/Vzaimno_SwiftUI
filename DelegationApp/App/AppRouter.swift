@@ -89,12 +89,7 @@ private struct MainTabView: View {
 
         case .profile:
             NavigationStack {
-                ProfileScreen(vm: .init(service: container.profileService))
-                    .toolbar {
-                        if AppConfig.authEnabled {
-                            Button("Logout") { session.logout() }
-                        }
-                    }
+                ProfileScreen(service: container.profileService, session: session)
             }
         }
     }

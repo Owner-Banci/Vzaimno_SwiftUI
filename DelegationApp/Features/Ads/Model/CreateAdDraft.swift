@@ -5,11 +5,20 @@
 //  Created by maftuna murtazaeva on 18.02.2026.
 //
 
+import UIKit
 import Foundation
 import YandexMapsMobile
 
 @MainActor
 final class CreateAdDraft: ObservableObject {
+    
+    struct DraftModerationMark: Equatable {
+        let severity: ModerationSeverity
+        let code: String
+        let details: String
+    }
+
+    @Published var moderationMarks: [String: DraftModerationMark] = [:]
 
     enum Category: String, CaseIterable, Identifiable {
         case delivery = "delivery"
@@ -101,6 +110,9 @@ final class CreateAdDraft: ObservableObject {
 
     // MARK: - Audience
     @Published var audience: Audience = .both
+    
+    @Published var mediaImages: [UIImage] = []
+    @Published var mediaJPEGData: [Data] = []
 
     private var pickupAddressSnapshot: String?
     private var dropoffAddressSnapshot: String?
@@ -189,11 +201,14 @@ final class CreateAdDraft: ObservableObject {
     }
 
     // MARK: - Mapping to request
-    func toCreateRequest() -> CreateAnnouncementRequest {
+    func toCreateRequest(status: String = "pending_review") -> CreateAnnouncementRequest {
         let iso = ISO8601DateFormatter()
-
         var data: [String: JSONValue] = [:]
         let titleTrimmed = AdValidators.trimmed(title)
+
+//        var data: [String: JSONValue] = [:]
+//        let titleTrimmed = AdValidators.trimmed(title)
+        
 
         data["category"] = .string(category?.rawValue ?? "")
         data["budget"] = jsonOptionalDecimal(budget)
@@ -258,11 +273,27 @@ final class CreateAdDraft: ObservableObject {
             }
         }
 
-        let categoryRaw = category?.rawValue ?? "unknown"
+//        let categoryRaw = category?.rawValue ?? "unknown"
+//        return CreateAnnouncementRequest(
+//            category: categoryRaw,
+//            title: titleTrimmed,
+//            status: "active",
+//            data: data
+//        )
+        
+//        let categoryRaw = category?.rawValue ?? "unknown"
+//        let status = statusOverride ?? "active"
+
+//        return CreateAnnouncementRequest(
+//            category: categoryRaw,
+//            title: titleTrimmed,
+//            status: status,
+//            data: data
+//        )
         return CreateAnnouncementRequest(
-            category: categoryRaw,
+            category: category?.rawValue ?? "",
             title: titleTrimmed,
-            status: "active",
+            status: status,
             data: data
         )
     }
@@ -283,5 +314,27 @@ final class CreateAdDraft: ObservableObject {
             "lat": .double(point.latitude),
             "lon": .double(point.longitude),
         ])
+    }
+    
+    func setMediaFromPicker(datas: [Data]) {
+        var images: [UIImage] = []
+        var jpeg: [Data] = []
+
+        for d in datas {
+            guard let img = UIImage(data: d) else { continue }
+            // сжимаем, чтобы не отправлять огромные файлы
+            let out = img.jpegData(compressionQuality: 0.82) ?? d
+            images.append(img)
+            jpeg.append(out)
+        }
+
+        self.mediaImages = images
+        self.mediaJPEGData = jpeg
+    }
+
+    func removeMedia(at index: Int) {
+        guard mediaImages.indices.contains(index) else { return }
+        mediaImages.remove(at: index)
+        mediaJPEGData.remove(at: index)
     }
 }

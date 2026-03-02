@@ -1,10 +1,3 @@
-//
-//  NewHelpAdFormScreen.swift
-//  iCuno test
-//
-//  Created by maftuna murtazaeva on 18.02.2026.
-//
-
 import SwiftUI
 
 struct NewHelpAdFormScreen: View {
@@ -16,6 +9,7 @@ struct NewHelpAdFormScreen: View {
     @State private var isValidating: Bool = false
     @State private var showValidationAlert: Bool = false
     @State private var validationText: String = ""
+
     private let searchService = AddressSearchService()
 
     var body: some View {
@@ -37,7 +31,7 @@ struct NewHelpAdFormScreen: View {
                     CreateAdValueField(
                         label: "Бюджет (опционально)",
                         placeholder: "0",
-                        trailing: "₽",
+                        trailing: "",
                         text: $draft.budget
                     )
                 }
@@ -59,14 +53,22 @@ struct NewHelpAdFormScreen: View {
                     subtitle: "Когда можно выполнить поручение.",
                     accent: accent
                 ) {
-                    DatePicker("Начало", selection: $draft.startDate, displayedComponents: [.date, .hourAndMinute])
-                        .font(.system(size: 16, weight: .semibold))
+                    DatePicker(
+                        "Начало",
+                        selection: $draft.startDate,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    .font(.system(size: 16, weight: .semibold))
 
                     CreateAdToggleRow(title: "Указать время окончания", isOn: $draft.hasEndTime)
 
                     if draft.hasEndTime {
-                        DatePicker("Окончание", selection: $draft.endDate, displayedComponents: [.date, .hourAndMinute])
-                            .font(.system(size: 16, weight: .semibold))
+                        DatePicker(
+                            "Окончание",
+                            selection: $draft.endDate,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                        .font(.system(size: 16, weight: .semibold))
                     }
                 }
 
@@ -82,14 +84,13 @@ struct NewHelpAdFormScreen: View {
                     )
                 }
 
+                // Фото: уже подключено через AdMediaPickerSection
                 CreateAdSectionCard(
-                    title: "Фото и видео (позже)",
-                    subtitle: "Пока без загрузки. Оставлено как точка расширения.",
+                    title: "Фото",
+                    subtitle: "Загрузите фото (до 3). Модерация — на сервере.",
                     accent: accent
                 ) {
-                    Text("Подключишь PhotosPicker + upload в Worker/Service.")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
+                    AdMediaPickerSection(draft: draft)
                 }
             }
             .padding(.horizontal, 20)
@@ -112,7 +113,7 @@ struct NewHelpAdFormScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             CreateAdBottomButton(
-                title: isValidating ? "Проверяем адрес..." : "Продолжить",
+                title: isValidating ? "Проверяем адрес." : "Продолжить",
                 accent: accent
             ) {
                 guard !isValidating else { return }
@@ -125,6 +126,7 @@ struct NewHelpAdFormScreen: View {
                         showValidationAlert = true
                         return
                     }
+
                     goContact = true
                 }
             }

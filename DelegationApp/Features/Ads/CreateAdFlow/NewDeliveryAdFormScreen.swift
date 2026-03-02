@@ -31,7 +31,22 @@ struct NewDeliveryAdFormScreen: View {
                     CreateAdTextField(
                         label: "Название",
                         placeholder: "Например: Забрать посылку и привезти",
-                        text: $draft.title
+                        text: $draft.title,
+                        mark: draft.moderationMarks["title"]
+                    )
+
+                    CreateAdTextField(
+                        label: "Адрес забора",
+                        placeholder: "Введите адрес",
+                        text: $draft.pickupAddress,
+                        mark: draft.moderationMarks["pickup_address"]
+                    )
+
+                    CreateAdTextField(
+                        label: "Адрес доставки",
+                        placeholder: "Введите адрес",
+                        text: $draft.dropoffAddress,
+                        mark: draft.moderationMarks["dropoff_address"]
                     )
 
                     CreateAdValueField(
@@ -112,13 +127,11 @@ struct NewDeliveryAdFormScreen: View {
 
                 // Заглушка под медиа — оставляем "задел", но без логики загрузки
                 CreateAdSectionCard(
-                    title: "Фото и видео (позже)",
-                    subtitle: "Пока без загрузки. Оставлено как точка расширения.",
+                    title: "Фото",
+                    subtitle: "Загрузите фото (до 3). Модерация — на сервере.",
                     accent: accent
                 ) {
-                    Text("Подключишь PhotosPicker + upload в Worker/Service.")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
+                    AdMediaPickerSection(draft: draft)
                 }
             }
             .padding(.horizontal, 20)

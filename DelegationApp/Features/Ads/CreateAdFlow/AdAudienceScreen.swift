@@ -30,18 +30,19 @@ struct AdAudienceScreen: View {
             }
 
             CreateAdBottomButton(
-                title: vm.isSubmitting ? "Публикуем..." : "Опубликовать",
+                title: vm.isSubmitting ? "Отправляем..." : "Отправить на проверку",
                 accent: accent
             ) {
                 Task { @MainActor in
                     let created = await vm.submit(draft: draft)
                     if let created {
+                        // Всегда закрываем create-flow и возвращаем в "Мои объявления"
                         onFinish(created)
-                    } else if let txt = vm.errorText {
+                    } else if let txt = vm.errorText, !txt.isEmpty {
                         errorText = txt
                         showError = true
                     } else {
-                        errorText = "Не удалось опубликовать"
+                        errorText = "Не удалось отправить объявление"
                         showError = true
                     }
                 }
@@ -86,10 +87,10 @@ struct AdAudienceScreen: View {
     private var statusHint: some View {
         CreateAdSectionCard(
             title: "Статус",
-            subtitle: "Сейчас публикуем как активное объявление. Черновики добавим позже.",
+            subtitle: "После отправки объявление появится в “Ждут действий”. На карту попадёт только после статуса “Активно”.",
             accent: accent
         ) {
-            Text("После публикации объявление появится в разделе “Мои объявления”.")
+            Text("Если фото/текст спорные — вы увидите пометки “!” в деталях.")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
         }
