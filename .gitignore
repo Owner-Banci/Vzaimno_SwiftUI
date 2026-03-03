@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+xcuserdata/
+
+# SwiftPM / SPM build artifacts
+.build/
+
+# CocoaPods (в репо оставляем Podfile и Podfile.lock, но не Pods/)
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Archives / symbols
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Local env
+.env
+.env.*
+
+# Твои экспортированные PDF-снапшоты кода (в корне проекта)
+CombinedCode_*.pdf
+
+# Git history backups
+.git_backup_*/
