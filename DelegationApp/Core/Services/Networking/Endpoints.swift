@@ -29,6 +29,8 @@ enum APIEndpoint {
     case announcementOffers(announcementID: String)
     case acceptOffer(announcementID: String, offerID: String)
     case rejectOffer(announcementID: String, offerID: String)
+    case announcementRoute(announcementID: String)
+    case myCurrentRoute
 
     case archiveAnnouncement(id: String)
     case deleteAnnouncement(id: String)
@@ -58,6 +60,8 @@ enum APIEndpoint {
         case .announcementOffers(let announcementID): return "announcements/\(announcementID)/offers"
         case .acceptOffer(let announcementID, let offerID): return "announcements/\(announcementID)/offers/\(offerID)/accept"
         case .rejectOffer(let announcementID, let offerID): return "announcements/\(announcementID)/offers/\(offerID)/reject"
+        case .announcementRoute(let announcementID): return "announcements/\(announcementID)/route"
+        case .myCurrentRoute: return "routes/me/current"
 
         case .archiveAnnouncement(let id): return "announcements/\(id)/archive"
         case .deleteAnnouncement(let id): return "announcements/\(id)"
@@ -71,7 +75,7 @@ enum APIEndpoint {
         switch self {
         case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .sendChatMessage:
             return .POST
-        case .me, .usersMe, .myReviews, .myAnnouncements, .publicAnnouncements, .announcementOffers, .chats, .chatMessages:
+        case .me, .usersMe, .myReviews, .myAnnouncements, .publicAnnouncements, .announcementOffers, .announcementRoute, .myCurrentRoute, .chats, .chatMessages:
             return .GET
         case .uploadAnnouncementMedia, .appealAnnouncement:
             return .POST

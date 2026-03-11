@@ -73,7 +73,13 @@ private struct MainTabView: View {
 
         case .route:
             NavigationStack {
-                RouteScreen(vm: .init(service: container.taskService))
+                RouteScreen(
+                    vm: .init(
+                        routeService: container.routeService,
+                        announcementService: container.announcementService,
+                        session: session
+                    )
+                )
             }
 
         case .ads:

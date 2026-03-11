@@ -55,4 +55,18 @@ enum AppConfig {
         }
         return url
     }()
+
+    static let webSocketBaseURL: URL = {
+        guard var components = URLComponents(url: apiBaseURL, resolvingAgainstBaseURL: false) else {
+            return apiBaseURL
+        }
+
+        if components.scheme == "https" {
+            components.scheme = "wss"
+        } else {
+            components.scheme = "ws"
+        }
+
+        return components.url ?? apiBaseURL
+    }()
 }

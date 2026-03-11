@@ -8,6 +8,7 @@ final class AppContainer: ObservableObject {
     let profileService: ProfileService
     let deviceService: DeviceService
     let announcementService: AnnouncementService
+    let routeService: RouteService
     let authService: AuthService
 
     // ВАЖНО: lazy — чтобы инициализация SessionStore произошла уже на MainActor
@@ -22,6 +23,7 @@ final class AppContainer: ObservableObject {
         profileService: ProfileService,
         deviceService: DeviceService,
         announcementService: AnnouncementService,
+        routeService: RouteService,
         authService: AuthService
     ) {
         self.taskService = taskService
@@ -29,6 +31,7 @@ final class AppContainer: ObservableObject {
         self.profileService = profileService
         self.deviceService = deviceService
         self.announcementService = announcementService
+        self.routeService = routeService
         self.authService = authService
     }
 }
@@ -41,6 +44,7 @@ extension AppContainer {
         profileService: NetworkProfileService(),
         deviceService: NetworkDeviceService(),
         announcementService: NetworkAnnouncementService(), // ВАЖНО: сеть
+        routeService: NetworkRouteService(),
         authService: NetworkAuthService()
     )
 }

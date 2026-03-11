@@ -18,7 +18,8 @@ struct ChatThreadScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .hidesLiquidTabBar(reason: "chat-thread-screen")
-        .task { await vm.loadMessages() }
+        .task { await vm.onAppear() }
+        .onDisappear { vm.onDisappear() }
         .alert(
             "Ошибка",
             isPresented: Binding(

@@ -37,6 +37,7 @@ struct NewDeliveryAdFormScreen: View {
 
                     CreateAdBudgetRangeField(
                         label: "Бюджетный диапазон",
+                        accent: accent,
                         minText: $draft.budgetMin,
                         maxText: $draft.budgetMax
                     )

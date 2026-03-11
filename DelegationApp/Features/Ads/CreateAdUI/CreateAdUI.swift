@@ -126,6 +126,7 @@ struct CreateAdValueField: View {
 
 struct CreateAdBudgetRangeField: View {
     let label: String
+    var accent: Color = Theme.ColorToken.turquoise
     @Binding var minText: String
     @Binding var maxText: String
 
@@ -160,7 +161,7 @@ struct CreateAdBudgetRangeField: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Theme.ColorToken.turquoise.opacity(0.12), lineWidth: 1)
+                        .stroke(accent.opacity(0.22), lineWidth: 1)
                 )
                 .onChange(of: text.wrappedValue) { _, newValue in
                     let digits = newValue.filter(\.isNumber)

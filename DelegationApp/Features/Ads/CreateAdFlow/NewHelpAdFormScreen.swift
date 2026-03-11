@@ -11,6 +11,7 @@ struct NewHelpAdFormScreen: View {
     @State private var validationText: String = ""
 
     private let searchService = AddressSearchService()
+    private let sectionAccent = CreateAdUI.Palette.beige
 
     var body: some View {
         ScrollView {
@@ -20,7 +21,7 @@ struct NewHelpAdFormScreen: View {
                 CreateAdSectionCard(
                     title: "Основное",
                     subtitle: "Коротко опишите задачу и бюджетный диапазон.",
-                    accent: accent
+                    accent: sectionAccent
                 ) {
                     CreateAdTextField(
                         label: "Название",
@@ -30,6 +31,7 @@ struct NewHelpAdFormScreen: View {
 
                     CreateAdBudgetRangeField(
                         label: "Бюджетный диапазон",
+                        accent: sectionAccent,
                         minText: $draft.budgetMin,
                         maxText: $draft.budgetMax
                     )
@@ -38,7 +40,7 @@ struct NewHelpAdFormScreen: View {
                 CreateAdSectionCard(
                     title: "Адрес",
                     subtitle: "Где нужна помощь.",
-                    accent: accent
+                    accent: sectionAccent
                 ) {
                     CreateAdTextField(
                         label: "Адрес",
@@ -50,7 +52,7 @@ struct NewHelpAdFormScreen: View {
                 CreateAdSectionCard(
                     title: "Время",
                     subtitle: "Когда можно выполнить поручение.",
-                    accent: accent
+                    accent: sectionAccent
                 ) {
                     DatePicker(
                         "Начало",
@@ -74,7 +76,7 @@ struct NewHelpAdFormScreen: View {
                 CreateAdSectionCard(
                     title: "Описание",
                     subtitle: "Любые детали, которые помогут исполнителю.",
-                    accent: accent
+                    accent: sectionAccent
                 ) {
                     CreateAdTextArea(
                         label: "Комментарий",
@@ -87,7 +89,7 @@ struct NewHelpAdFormScreen: View {
                 CreateAdSectionCard(
                     title: "Фото",
                     subtitle: "Загрузите фото (до 3). Модерация — на сервере.",
-                    accent: accent
+                    accent: sectionAccent
                 ) {
                     AdMediaPickerSection(draft: draft)
                 }
