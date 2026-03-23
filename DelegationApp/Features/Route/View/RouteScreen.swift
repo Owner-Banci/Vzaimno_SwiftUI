@@ -102,13 +102,13 @@ struct RouteScreen: View {
                 .softCardShadow()
 
             MapCanvasView(
-                centerPoint: .constant(nil),
+                centerPoint: $vm.focusedPoint,
                 pins: vm.mapPins,
-                selectedPinID: nil,
+                selectedPinID: vm.selectedTaskID,
                 routePolyline: vm.routePolyline,
                 shouldFitRoute: vm.shouldFitRoute,
                 onRouteFitted: vm.consumeRouteFitRequest,
-                onPinTap: { _ in },
+                onPinTap: vm.selectPin(id:),
                 mode: .real
             )
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.l, style: .continuous))
@@ -135,9 +135,13 @@ struct RouteScreen: View {
             } else {
                 ForEach(route.tasksByRoute) { task in
                     Button {
+                        vm.selectTask(task)
                         Task { await vm.openTaskDetails(taskID: task.id) }
                     } label: {
-                        RouteTaskCard(task: task)
+                        RouteTaskCard(
+                            task: task,
+                            isSelected: vm.selectedTaskID == task.id
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -219,6 +223,7 @@ private struct RouteRow: View {
 
 private struct RouteTaskCard: View {
     let task: TaskByRouteDTO
+    let isSelected: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -262,7 +267,14 @@ private struct RouteTaskCard: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: Theme.Radius.m, style: .continuous)
-                .fill(Theme.ColorToken.white)
+                .fill(isSelected ? Theme.ColorToken.turquoise.opacity(0.10) : Theme.ColorToken.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.m, style: .continuous)
+                .stroke(
+                    isSelected ? Theme.ColorToken.turquoise.opacity(0.35) : .clear,
+                    lineWidth: 1
+                )
         )
         .softCardShadow()
     }

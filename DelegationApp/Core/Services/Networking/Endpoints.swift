@@ -30,7 +30,10 @@ enum APIEndpoint {
     case acceptOffer(announcementID: String, offerID: String)
     case rejectOffer(announcementID: String, offerID: String)
     case announcementRoute(announcementID: String)
+    case announcementRouteContext(announcementID: String)
     case myCurrentRoute
+    case myCurrentRouteContext
+    case routeBuild
 
     case archiveAnnouncement(id: String)
     case deleteAnnouncement(id: String)
@@ -61,7 +64,10 @@ enum APIEndpoint {
         case .acceptOffer(let announcementID, let offerID): return "announcements/\(announcementID)/offers/\(offerID)/accept"
         case .rejectOffer(let announcementID, let offerID): return "announcements/\(announcementID)/offers/\(offerID)/reject"
         case .announcementRoute(let announcementID): return "announcements/\(announcementID)/route"
+        case .announcementRouteContext(let announcementID): return "announcements/\(announcementID)/route/context"
         case .myCurrentRoute: return "routes/me/current"
+        case .myCurrentRouteContext: return "routes/me/current/context"
+        case .routeBuild: return "route/build"
 
         case .archiveAnnouncement(let id): return "announcements/\(id)/archive"
         case .deleteAnnouncement(let id): return "announcements/\(id)"
@@ -73,9 +79,9 @@ enum APIEndpoint {
 
     var method: HTTPMethod {
         switch self {
-        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .sendChatMessage:
+        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .sendChatMessage, .routeBuild:
             return .POST
-        case .me, .usersMe, .myReviews, .myAnnouncements, .publicAnnouncements, .announcementOffers, .announcementRoute, .myCurrentRoute, .chats, .chatMessages:
+        case .me, .usersMe, .myReviews, .myAnnouncements, .publicAnnouncements, .announcementOffers, .announcementRoute, .announcementRouteContext, .myCurrentRoute, .myCurrentRouteContext, .chats, .chatMessages:
             return .GET
         case .uploadAnnouncementMedia, .appealAnnouncement:
             return .POST
