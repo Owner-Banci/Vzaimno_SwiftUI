@@ -8,11 +8,11 @@
 import SwiftUI
 
 struct AdContactScreen: View {
+    @EnvironmentObject private var vm: CreateAdFlowViewModel
     @ObservedObject var draft: CreateAdDraft
     let accent: Color
     let onFinish: (AnnouncementDTO) -> Void
 
-    @State private var goAudience: Bool = false
     @State private var showValidationAlert: Bool = false
     @State private var validationText: String = ""
 
@@ -69,14 +69,32 @@ struct AdContactScreen: View {
                 .padding(.bottom, 24)
             }
 
-            CreateAdBottomButton(title: "Продолжить", accent: accent) {
-                if let error = draft.validateContactStep() {
-                    validationText = error
-                    showValidationAlert = true
-                } else {
-                    goAudience = true
+            CreateAdBottomButton(
+                title: vm.isSubmitting ? "Отправляем..." : "Отправить на проверку",
+                accent: accent
+            ) {
+                guard !vm.isSubmitting else { return }
+
+                Task { @MainActor in
+                    if let error = draft.validateContactStep() {
+                        validationText = error
+                        showValidationAlert = true
+                        return
+                    }
+
+                    let created = await vm.submit(draft: draft)
+                    if let created {
+                        onFinish(created)
+                    } else if let errorText = vm.errorText, !errorText.isEmpty {
+                        validationText = errorText
+                        showValidationAlert = true
+                    } else {
+                        validationText = "Не удалось отправить объявление"
+                        showValidationAlert = true
+                    }
                 }
             }
+            .disabled(vm.isSubmitting)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar { backToolbar }
@@ -84,13 +102,6 @@ struct AdContactScreen: View {
             Button("Ок", role: .cancel) {}
         } message: {
             Text(validationText)
-        }
-        .navigationDestination(isPresented: $goAudience) {
-            AdAudienceScreen(
-                draft: draft,
-                accent: accent,
-                onFinish: onFinish
-            )
         }
     }
 

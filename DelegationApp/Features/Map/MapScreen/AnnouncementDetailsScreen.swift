@@ -11,12 +11,15 @@ struct AnnouncementDetailsScreen: View {
     let item: AnnouncementDTO
     @ObservedObject var vm: MyAdsViewModel
     @EnvironmentObject private var container: AppContainer
+    @Environment(\.dismiss) private var dismiss
 
     @StateObject private var offersVM: AnnouncementOffersViewModel
     @State private var selectedTab: DetailsTab = .details
     @State private var showCreateFromThis: Bool = false
     @State private var prefilledDraft: CreateAdDraft?
     @State private var activeThread: ChatThreadPreview?
+    @State private var showDeleteConfirmation: Bool = false
+    @State private var isDeletingAnnouncement: Bool = false
 
     init(item: AnnouncementDTO, vm: MyAdsViewModel) {
         self.item = item
@@ -96,6 +99,25 @@ struct AnnouncementDetailsScreen: View {
         } message: {
             Text(offersVM.errorText ?? "")
         }
+        .alert(
+            "Ошибка",
+            isPresented: Binding(
+                get: { vm.errorText != nil },
+                set: { _ in vm.errorText = nil }
+            )
+        ) {
+            Button("Ок", role: .cancel) { }
+        } message: {
+            Text(vm.errorText ?? "")
+        }
+        .alert("Удалить объявление?", isPresented: $showDeleteConfirmation) {
+            Button("Удалить", role: .destructive) {
+                Task { await deleteCurrentAnnouncement() }
+            }
+            Button("Отмена", role: .cancel) { }
+        } message: {
+            Text("Объявление исчезнет из активных заданий, карты и маршрутов.")
+        }
     }
 
     private var showsOffersSegment: Bool {
@@ -129,6 +151,8 @@ struct AnnouncementDetailsScreen: View {
                     }
                     .padding(.top, 10)
                 }
+
+                deleteButton
             }
             .padding(16)
         }
@@ -211,7 +235,9 @@ struct AnnouncementDetailsScreen: View {
     }
 
     private var moderationBlock: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let visibleReasons = currentItem.moderationPayload?.reasons.filter { !$0.isTechnicalIssue } ?? []
+
+        return VStack(alignment: .leading, spacing: 10) {
             Text("Статус и причина")
                 .font(.system(size: 16, weight: .bold))
 
@@ -221,9 +247,9 @@ struct AnnouncementDetailsScreen: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let reasons = currentItem.moderationPayload?.reasons, !reasons.isEmpty {
+            if !visibleReasons.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(reasons) { reason in
+                    ForEach(visibleReasons) { reason in
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: "exclamationmark.circle.fill")
                                 .foregroundStyle(reason.severity.color)
@@ -276,6 +302,14 @@ struct AnnouncementDetailsScreen: View {
                     value: currentItem.data["address"]?.stringValue ?? "—",
                     severity: currentItem.severity(for: "address")
                 )
+                if let destinationAddress = currentItem.data["destination_address"]?.stringValue,
+                   !destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    fieldRow(
+                        "Второй адрес",
+                        value: destinationAddress,
+                        severity: currentItem.severity(for: "destination_address")
+                    )
+                }
             }
 
             fieldRow(
@@ -314,6 +348,7 @@ struct AnnouncementDetailsScreen: View {
         case "pickup_address": return "Адрес забора"
         case "dropoff_address": return "Адрес доставки"
         case "address": return "Адрес"
+        case "destination_address": return "Второй адрес"
         case "media": return "Фото"
         default: return field
         }
@@ -326,6 +361,44 @@ struct AnnouncementDetailsScreen: View {
         draft.applyModerationMarks(from: currentItem)
         prefilledDraft = draft
         showCreateFromThis = true
+    }
+
+    private var deleteButton: some View {
+        Button(role: .destructive) {
+            showDeleteConfirmation = true
+        } label: {
+            Group {
+                if isDeletingAnnouncement {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Text("Удалить объявление")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.red)
+            )
+            .foregroundStyle(.white)
+        }
+        .padding(.top, 10)
+        .disabled(isDeletingAnnouncement)
+    }
+
+    private func deleteCurrentAnnouncement() async {
+        guard !isDeletingAnnouncement else { return }
+
+        isDeletingAnnouncement = true
+        let didDelete = await vm.delete(currentItem.id)
+        isDeletingAnnouncement = false
+
+        if didDelete {
+            dismiss()
+        }
     }
 }
 

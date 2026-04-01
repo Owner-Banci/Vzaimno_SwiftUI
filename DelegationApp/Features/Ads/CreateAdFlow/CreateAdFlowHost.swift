@@ -30,7 +30,7 @@ struct CreateAdFlowHost: View {
 
     var body: some View {
         NavigationStack {
-            NewAdCategoryScreen(
+            StructuredCreateAdScreen(
                 draft: draft,
                 onClose: { dismiss() },
                 onFinish: { created in

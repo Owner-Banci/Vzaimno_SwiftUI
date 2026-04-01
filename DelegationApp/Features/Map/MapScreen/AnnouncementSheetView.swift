@@ -86,6 +86,11 @@ struct AnnouncementSheetView: View {
                     valueRow("Откуда", value: valueOrDash(string("pickup_address")))
                     valueRow("Куда", value: valueOrDash(string("dropoff_address")))
                 }
+            } else if let destinationAddress = string("destination_address") {
+                SectionCard(title: "Адреса") {
+                    valueRow("Где", value: valueOrDash(string("address")))
+                    valueRow("Куда", value: destinationAddress)
+                }
             } else {
                 SectionCard(title: "Адрес") {
                     valueRow("Где", value: valueOrDash(string("address")))

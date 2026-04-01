@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		DCADD4D77CABFAD9934B7570 /* Pods_iCuno_test.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6682905C5E35A97133C17155 /* Pods_iCuno_test.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E8F099352EBE65C700E9692C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -25,6 +29,7 @@
 
 /* Begin PBXFileReference section */
 		1F2F4A3D10EC4F67BB98CE1F /* Pods-iCuno test.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iCuno test.release.xcconfig"; path = "Target Support Files/Pods-iCuno test/Pods-iCuno test.release.xcconfig"; sourceTree = "<group>"; };
+		6682905C5E35A97133C17155 /* Pods_iCuno_test.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_iCuno_test.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		6948B15D7E9A1058E7FFF55A /* Pods-iCuno test.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iCuno test.debug.xcconfig"; path = "Target Support Files/Pods-iCuno test/Pods-iCuno test.debug.xcconfig"; sourceTree = "<group>"; };
 		E8F099272EBE65C500E9692C /* iCuno test.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "iCuno test.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8F099342EBE65C700E9692C /* iCuno testTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "iCuno testTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,6 +64,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DCADD4D77CABFAD9934B7570 /* Pods_iCuno_test.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -91,6 +97,7 @@
 		AD164DDEBDAF0221E097A0BE /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				6682905C5E35A97133C17155 /* Pods_iCuno_test.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -194,7 +201,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1640;
-				LastUpgradeCheck = 1640;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					E8F099262EBE65C500E9692C = {
 						CreatedOnToolsVersion = 16.4;
@@ -397,6 +404,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -454,6 +462,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};

@@ -1,10 +1,6 @@
 import CoreLocation
 import Foundation
 
-#if canImport(YandexMapsMobile)
-import YandexMapsMobile
-#endif
-
 @MainActor
 final class RouteViewModel: ObservableObject {
     @Published private(set) var isLoading: Bool = false
@@ -15,19 +11,18 @@ final class RouteViewModel: ObservableObject {
     @Published private(set) var route: RouteDetailsDTO?
     @Published private(set) var tasksByRoute: [TaskByRouteDTO] = []
 
-    @Published private(set) var routePolyline: YMKPolyline?
-    @Published private(set) var mapPins: [MapAdPin] = []
-    @Published var shouldFitRoute: Bool = false
     @Published var selectedTaskID: String?
-    @Published var focusedPoint: YMKPoint?
-
+    @Published var focusedCoordinate: CLLocationCoordinate2D?
+    @Published var shouldFitRoute: Bool = false
     @Published var selectedAnnouncement: AnnouncementDTO?
 
     private let routeService: RouteService
     private let routeGeometryBuilder: RouteGeometryBuilding
     private let announcementService: AnnouncementService
     private let session: SessionStore
+
     private var announcementCache: [String: AnnouncementDTO] = [:]
+    private var autoRefreshTask: Task<Void, Never>?
 
     init(
         routeService: RouteService,
@@ -39,6 +34,62 @@ final class RouteViewModel: ObservableObject {
         self.routeGeometryBuilder = routeGeometryBuilder ?? AppleDirectionsRouteBuilder()
         self.announcementService = announcementService
         self.session = session
+    }
+
+    deinit {
+        autoRefreshTask?.cancel()
+    }
+
+    var routeCoordinates: [CLLocationCoordinate2D] {
+        route?.polylineCoordinates ?? []
+    }
+
+    var mapPins: [RouteMapPin] {
+        guard let route else { return [] }
+
+        var pins: [RouteMapPin] = []
+
+        if let start = route.polylineCoordinates.first {
+            pins.append(
+                RouteMapPin(
+                    id: "route-start",
+                    title: "Старт",
+                    subtitle: route.startAddress,
+                    latitude: start.latitude,
+                    longitude: start.longitude,
+                    kind: .start
+                )
+            )
+        }
+
+        if let end = route.polylineCoordinates.last {
+            pins.append(
+                RouteMapPin(
+                    id: "route-end",
+                    title: "Финиш",
+                    subtitle: route.endAddress,
+                    latitude: end.latitude,
+                    longitude: end.longitude,
+                    kind: .end
+                )
+            )
+        }
+
+        pins.append(
+            contentsOf: tasksByRoute.compactMap { task in
+                guard let coordinate = task.coordinate else { return nil }
+                return RouteMapPin(
+                    id: task.id,
+                    title: task.title,
+                    subtitle: task.addressText,
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    kind: .recommendedTask
+                )
+            }
+        )
+
+        return pins
     }
 
     func load() async {
@@ -55,12 +106,13 @@ final class RouteViewModel: ObservableObject {
 
         do {
             let fetchedRoute = try await buildCurrentRoute(token: token)
-            route = fetchedRoute
-            tasksByRoute = fetchedRoute.tasksByRoute
-            reconcileSelection(with: fetchedRoute.tasksByRoute)
+            applyRoute(fetchedRoute)
+            if let selectedAnnouncement,
+               !fetchedRoute.tasksByRoute.contains(where: { $0.id == selectedAnnouncement.id }) {
+                self.selectedAnnouncement = nil
+            }
             emptyMessage = nil
             await preloadAnnouncements(for: fetchedRoute.tasksByRoute.map(\.id))
-            applyMapData(from: fetchedRoute)
         } catch {
             if error.isUnauthorizedResponse {
                 await session.logout()
@@ -82,13 +134,34 @@ final class RouteViewModel: ObservableObject {
         await load()
     }
 
+    func startAutoRefresh() {
+        guard autoRefreshTask == nil else { return }
+
+        autoRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !Task.isCancelled, let self else { break }
+                await self.load()
+            }
+
+            await MainActor.run {
+                self?.autoRefreshTask = nil
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+    }
+
     func consumeRouteFitRequest() {
         shouldFitRoute = false
     }
 
     func selectTask(_ task: TaskByRouteDTO) {
         selectedTaskID = task.id
-        focusedPoint = resolvedPoint(for: task)
+        focusedCoordinate = task.coordinate
     }
 
     func selectPin(id: String) {
@@ -109,10 +182,6 @@ final class RouteViewModel: ObservableObject {
                 localCache[item.id] = item
             }
             announcementCache = localCache
-
-            if let route {
-                applyMapData(from: route)
-            }
 
             if let announcement = announcementCache[taskID] {
                 selectedAnnouncement = announcement
@@ -171,11 +240,10 @@ final class RouteViewModel: ObservableObject {
     private func clearRouteState() {
         route = nil
         tasksByRoute = []
-        routePolyline = nil
-        mapPins = []
-        shouldFitRoute = false
         selectedTaskID = nil
-        focusedPoint = nil
+        focusedCoordinate = nil
+        shouldFitRoute = false
+        selectedAnnouncement = nil
     }
 
     private func preloadAnnouncements(for ids: [String]) async {
@@ -188,15 +256,16 @@ final class RouteViewModel: ObservableObject {
                 announcementCache[item.id] = item
             }
         } catch {
-            // Не блокируем экран маршрута из-за фонового префетча.
+            // Не блокируем экран маршрута из-за фоновой подгрузки карточек.
         }
     }
 
-    private func applyMapData(from details: RouteDetailsDTO) {
-        routePolyline = Self.makePolyline(from: details.polyline)
-        mapPins = makePins(from: details)
-        focusedPoint = selectedTask.flatMap { resolvedPoint(for: $0) }
-        shouldFitRoute = routePolyline != nil
+    private func applyRoute(_ details: RouteDetailsDTO) {
+        route = details
+        tasksByRoute = details.tasksByRoute
+        reconcileSelection(with: details.tasksByRoute)
+        focusedCoordinate = selectedTask?.coordinate
+        shouldFitRoute = routeCoordinates.count >= 2
     }
 
     private var selectedTask: TaskByRouteDTO? {
@@ -209,160 +278,5 @@ final class RouteViewModel: ObservableObject {
             return
         }
         selectedTaskID = tasks.first?.id
-    }
-
-    private func makePins(from details: RouteDetailsDTO) -> [MapAdPin] {
-        var pins = makeRouteEndpointPins(from: details.polyline)
-        pins.append(contentsOf: details.tasksByRoute.compactMap(makeTaskPin))
-        return pins
-    }
-
-    private func makeRouteEndpointPins(from polyline: [[Double]]) -> [MapAdPin] {
-        guard
-            let startPair = Self.normalizedPair(polyline.first),
-            let endPair = Self.normalizedPair(polyline.last)
-        else {
-            return []
-        }
-
-        let markerStub = AnnouncementDTO(
-            id: "route-marker",
-            user_id: "route",
-            category: "route",
-            title: "Маршрут",
-            status: "active",
-            data: [:],
-            created_at: "1970-01-01T00:00:00Z"
-        )
-
-        return [
-            MapAdPin(
-                id: "route-start",
-                point: YMKPoint(latitude: startPair[0], longitude: startPair[1]),
-                label: "Старт",
-                announcement: markerStub
-            ),
-            MapAdPin(
-                id: "route-end",
-                point: YMKPoint(latitude: endPair[0], longitude: endPair[1]),
-                label: "Финиш",
-                announcement: markerStub
-            ),
-        ]
-    }
-
-    private func makeTaskPin(from task: TaskByRouteDTO) -> MapAdPin? {
-        guard let point = resolvedPoint(for: task) else { return nil }
-        let announcement = announcementCache[task.id] ?? Self.makeAnnouncementStub(for: task)
-
-        return MapAdPin(
-            id: task.id,
-            point: point,
-            label: markerLabel(for: task, announcement: announcement),
-            announcement: announcement
-        )
-    }
-
-    private func resolvedPoint(for task: TaskByRouteDTO) -> YMKPoint? {
-        if let coordinate = task.coordinate {
-            return YMKPoint(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        }
-
-        guard let announcement = announcementCache[task.id] else { return nil }
-        return Self.extractDisplayPoint(from: announcement)
-    }
-
-    private func markerLabel(for task: TaskByRouteDTO, announcement: AnnouncementDTO) -> String {
-        if let priceText = task.priceText?.trimmingCharacters(in: .whitespacesAndNewlines), !priceText.isEmpty {
-            return priceText
-        }
-        if let budget = announcement.formattedBudgetText, !budget.isEmpty {
-            return budget
-        }
-        if let category = task.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
-            return category.capitalized
-        }
-        return "Задание"
-    }
-
-    private static func makeAnnouncementStub(for task: TaskByRouteDTO) -> AnnouncementDTO {
-        var data: [String: JSONValue] = [:]
-
-        if let address = task.addressText?.trimmingCharacters(in: .whitespacesAndNewlines), !address.isEmpty {
-            data["address"] = .string(address)
-        }
-        if let coordinate = task.coordinate {
-            data["point"] = .object([
-                "lat": .double(coordinate.latitude),
-                "lon": .double(coordinate.longitude),
-            ])
-        }
-
-        return AnnouncementDTO(
-            id: task.id,
-            user_id: "route",
-            category: task.category ?? "route",
-            title: task.title,
-            status: task.status ?? "active",
-            data: data,
-            created_at: "1970-01-01T00:00:00Z"
-        )
-    }
-
-    private static func normalizedPair(_ raw: [Double]?) -> [Double]? {
-        guard let raw, raw.count >= 2 else { return nil }
-        let lat = raw[0]
-        let lon = raw[1]
-        guard (-90...90).contains(lat), (-180...180).contains(lon) else { return nil }
-        return [lat, lon]
-    }
-
-    private static func makePolyline(from raw: [[Double]]) -> YMKPolyline? {
-        #if canImport(YandexMapsMobile)
-        guard let builder = YMKPolylineBuilder() else { return nil }
-        var pointsCount = 0
-
-        for pair in raw {
-            guard let normalized = normalizedPair(pair) else { continue }
-            builder.append(YMKPoint(latitude: normalized[0], longitude: normalized[1]))
-            pointsCount += 1
-        }
-
-        guard pointsCount >= 2 else { return nil }
-        return builder.build()
-        #else
-        return raw.count >= 2 ? YMKPolyline() : nil
-        #endif
-    }
-
-    private static func extractDisplayPoint(from announcement: AnnouncementDTO) -> YMKPoint? {
-        let data = announcement.data
-
-        if announcement.category.lowercased() == "delivery" {
-            if let point = extractPoint(from: data, keys: ["pickup_point", "point"]) {
-                return point
-            }
-        } else if announcement.category.lowercased() == "help" {
-            if let point = extractPoint(from: data, keys: ["help_point", "point"]) {
-                return point
-            }
-        }
-
-        return extractPoint(from: data, keys: ["point", "pickup_point", "help_point"])
-    }
-
-    private static func extractPoint(
-        from data: [String: JSONValue],
-        keys: [String]
-    ) -> YMKPoint? {
-        for key in keys {
-            guard let pointValue = data[key]?.objectValue else { continue }
-            guard
-                let lat = pointValue["lat"]?.doubleValue,
-                let lon = pointValue["lon"]?.doubleValue
-            else { continue }
-            return YMKPoint(latitude: lat, longitude: lon)
-        }
-        return nil
     }
 }

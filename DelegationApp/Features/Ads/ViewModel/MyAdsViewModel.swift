@@ -63,26 +63,30 @@ final class MyAdsViewModel: ObservableObject {
         }
     }
 
-    func delete(_ announcementId: String) async {
+    func delete(_ announcementId: String) async -> Bool {
         if removeOptimisticIfNeeded(announcementId) {
-            return
+            showToast("Объявление удалено")
+            return true
         }
 
-        guard let token = session.token else { return }
+        guard let token = session.token else { return false }
         do {
             _ = try await service.deleteAnnouncement(token: token, announcementId: announcementId)
             serverItems.removeAll { $0.id == announcementId }
             rebuildItems()
+            showToast("Объявление удалено")
             updateAutoRefreshIfNeeded()
+            return true
         } catch {
             errorText = error.localizedDescription
+            return false
         }
     }
 
     func insertOptimistic(_ announcement: AnnouncementDTO) {
         optimisticItems[announcement.id] = announcement
         rebuildItems()
-        showToast("Отправлено на проверку")
+        showToast(announcement.needsStatusPolling ? "Отправлено на проверку" : "Объявление опубликовано")
         updateAutoRefreshIfNeeded()
     }
 

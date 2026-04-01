@@ -109,7 +109,8 @@ struct NewDeliveryAdFormScreen: View {
                     CreateAdTextArea(
                         label: "Комментарий",
                         placeholder: "Например: позвонить за 10 минут до приезда…",
-                        text: $draft.notes
+                        text: $draft.notes,
+                        mark: draft.moderationMarks["notes"]
                     )
                 }
 
@@ -119,7 +120,10 @@ struct NewDeliveryAdFormScreen: View {
                     subtitle: "Загрузите фото (до 3). Модерация — на сервере.",
                     accent: accent
                 ) {
-                    AdMediaPickerSection(draft: draft)
+                    AdMediaPickerSection(
+                        draft: draft,
+                        mark: draft.moderationMarks["media"]
+                    )
                 }
             }
             .padding(.horizontal, 20)

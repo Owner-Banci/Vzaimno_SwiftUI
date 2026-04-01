@@ -61,6 +61,15 @@ candidates AS (
 FROM announcements a
 WHERE a.deleted_at IS NULL
   AND a.status = 'active'
+  AND COALESCE(a.data -> 'moderation' -> 'text' ->> 'manual_review_required', 'false') <> 'true'
+  AND COALESCE(a.data -> 'moderation' -> 'image' ->> 'manual_review_required', 'false') <> 'true'
+  AND jsonb_array_length(
+        CASE
+            WHEN jsonb_typeof(a.data -> 'moderation' -> 'reasons') = 'array'
+            THEN a.data -> 'moderation' -> 'reasons'
+            ELSE '[]'::jsonb
+        END
+      ) = 0
   AND a.id::text <> %s
   AND a.user_id::text <> %s
   AND NOT EXISTS (

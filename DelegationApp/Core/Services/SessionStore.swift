@@ -1,11 +1,34 @@
 import Foundation
 import Security
 
+private enum SessionProfileCache {
+    private static let meKey = "icuno.session.me"
+
+    static func save(_ me: MeResponse?) {
+        let defaults = UserDefaults.standard
+
+        guard let me else {
+            defaults.removeObject(forKey: meKey)
+            return
+        }
+
+        guard let data = try? JSONEncoder().encode(me) else { return }
+        defaults.set(data, forKey: meKey)
+    }
+
+    static func load() -> MeResponse? {
+        guard let data = UserDefaults.standard.data(forKey: meKey) else { return nil }
+        return try? JSONDecoder().decode(MeResponse.self, from: data)
+    }
+}
+
 @MainActor
 final class SessionStore: ObservableObject {
     @Published private(set) var token: String?
     @Published private(set) var me: MeResponse?
     @Published var errorText: String?
+    @Published private(set) var connectivityBannerText: String?
+    @Published private(set) var isOffline: Bool = false
     @Published private(set) var isRestoring: Bool = true
     @Published private(set) var isBusy: Bool = false
 
@@ -25,6 +48,7 @@ final class SessionStore: ObservableObject {
         }
 
         self.token = Keychain.readString(key: keychainKey)
+        self.me = self.token == nil ? nil : SessionProfileCache.load()
         Task { await restoreSession() }
     }
 
@@ -66,11 +90,14 @@ final class SessionStore: ObservableObject {
 
         let profile = try await auth.me(token: token)
         self.me = profile
+        SessionProfileCache.save(profile)
+        clearConnectivityState()
     }
 
     func logout() async {
         let currentToken = token
         errorText = nil
+        clearConnectivityState()
         isBusy = true
 
         if AppConfig.authEnabled, let currentToken {
@@ -96,10 +123,18 @@ final class SessionStore: ObservableObject {
             }
             await registerDeviceIfPossible()
         } catch is TimeoutError {
-            self.errorText = "Не удалось проверить сессию (таймаут). Проверь API Base URL."
+            applyOfflineState(message: "Нет соединения с сервером. Работаем офлайн.")
         } catch {
-            clearSession()
-            self.errorText = error.localizedDescription
+            if error.invalidatesSession {
+                clearSession()
+                self.errorText = "Сессия истекла или была отозвана. Войдите снова."
+            } else {
+                applyOfflineState(
+                    message: error.isConnectivityError
+                        ? "Нет соединения с сервером. Работаем офлайн."
+                        : "Сервер временно недоступен. Сессия сохранена."
+                )
+            }
         }
     }
 
@@ -124,20 +159,28 @@ final class SessionStore: ObservableObject {
         do {
             try await action()
         } catch {
-            clearSession()
             errorText = error.localizedDescription
         }
     }
 
     private func authorize(with accessToken: String) async throws {
         setTokenAndStore(accessToken)
+        errorText = nil
 
         do {
             try await loadMe()
             await registerDeviceIfPossible()
         } catch {
-            clearSession()
-            throw error
+            if error.invalidatesSession {
+                clearSession()
+                throw error
+            }
+
+            applyOfflineState(
+                message: error.isConnectivityError
+                    ? "Вход выполнен, но сервер сейчас недоступен. Продолжаем с локальной сессией."
+                    : "Вход выполнен, но профиль не удалось обновить. Продолжаем с локальной сессией."
+            )
         }
     }
 
@@ -156,10 +199,22 @@ final class SessionStore: ObservableObject {
         Keychain.saveString(value, key: keychainKey)
     }
 
+    private func applyOfflineState(message: String) {
+        isOffline = true
+        connectivityBannerText = message
+    }
+
+    private func clearConnectivityState() {
+        isOffline = false
+        connectivityBannerText = nil
+    }
+
     private func clearSession() {
         token = nil
         me = nil
+        clearConnectivityState()
         Keychain.delete(key: keychainKey)
+        SessionProfileCache.save(nil)
         URLCache.shared.removeAllCachedResponses()
     }
 

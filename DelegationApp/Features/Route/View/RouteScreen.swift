@@ -22,7 +22,13 @@ struct RouteScreen: View {
             }
         }
         .navigationTitle("Маршрут")
-        .task { await vm.load() }
+        .task {
+            await vm.load()
+            vm.startAutoRefresh()
+        }
+        .onDisappear {
+            vm.stopAutoRefresh()
+        }
         .sheet(item: $vm.selectedAnnouncement) { announcement in
             AnnouncementSheetView(
                 announcement: announcement,
@@ -101,15 +107,14 @@ struct RouteScreen: View {
                 .fill(Theme.ColorToken.white)
                 .softCardShadow()
 
-            MapCanvasView(
-                centerPoint: $vm.focusedPoint,
+            RouteAppleMapView(
+                focusedCoordinate: $vm.focusedCoordinate,
                 pins: vm.mapPins,
                 selectedPinID: vm.selectedTaskID,
-                routePolyline: vm.routePolyline,
+                routeCoordinates: vm.routeCoordinates,
                 shouldFitRoute: vm.shouldFitRoute,
                 onRouteFitted: vm.consumeRouteFitRequest,
-                onPinTap: vm.selectPin(id:),
-                mode: .real
+                onPinTap: vm.selectPin(id:)
             )
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.l, style: .continuous))
         }

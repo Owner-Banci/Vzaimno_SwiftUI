@@ -46,6 +46,13 @@ private struct MainTabView: View {
     var body: some View {
         ZStack { contentView }
             .environment(\.liquidTabBarVisibilityStore, tabBarVisibility)
+            .overlay(alignment: .top) {
+                if let bannerText = session.connectivityBannerText {
+                    ConnectivityBanner(text: bannerText)
+                        .padding(.top, 8)
+                        .padding(.horizontal, 16)
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 if !tabBarVisibility.isHidden {
                     LiquidTabBar(selection: $tab)
@@ -102,5 +109,27 @@ private struct MainTabView: View {
                 ProfileScreen(service: container.profileService, session: session)
             }
         }
+    }
+}
+
+private struct ConnectivityBanner: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 13, weight: .semibold))
+            Text(text)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(2)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(0.82))
+        )
+        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 8)
     }
 }

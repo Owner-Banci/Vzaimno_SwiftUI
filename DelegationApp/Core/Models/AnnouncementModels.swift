@@ -5,6 +5,7 @@
 //  Created by maftuna murtazaeva on 18.02.2026.
 //
 
+import CoreLocation
 import Foundation
 
 // MARK: - Network models
@@ -110,6 +111,10 @@ extension AnnouncementDTO {
 
     var previewImageURL: URL? {
         imageURLs.first
+    }
+
+    var hasAttachedMedia: Bool {
+        !imageURLs.isEmpty
     }
 
     var offersCount: Int {
@@ -246,5 +251,351 @@ extension AnnouncementDTO {
 
     private static func formatRawCurrency(_ value: Int) -> String {
         value.formatted(.number.grouping(.automatic))
+    }
+}
+
+struct AnnouncementStructuredData: Equatable {
+    enum ActionType: String, CaseIterable, Hashable {
+        case pickup
+        case buy
+        case carry
+        case ride
+        case proHelp = "pro_help"
+        case other
+
+        var title: String {
+            switch self {
+            case .pickup: return "Забрать"
+            case .buy: return "Купить"
+            case .carry: return "Перенести"
+            case .ride: return "Подвезти"
+            case .proHelp: return "Помощь от профи"
+            case .other: return "Другое"
+            }
+        }
+    }
+
+    enum ResolvedCategory: String, CaseIterable, Hashable {
+        case pickupPoint = "pickup_point"
+        case handoff
+        case buy
+        case carry
+        case ride
+        case proHelp = "pro_help"
+        case other
+    }
+
+    enum SourceKind: String, CaseIterable, Hashable {
+        case person
+        case pickupPoint = "pickup_point"
+        case venue
+        case address
+        case office
+        case other
+
+        var title: String {
+            switch self {
+            case .person: return "У человека"
+            case .pickupPoint: return "Из ПВЗ"
+            case .venue: return "Из заведения"
+            case .address: return "С адреса"
+            case .office: return "Из офиса"
+            case .other: return "Другое"
+            }
+        }
+    }
+
+    enum DestinationKind: String, CaseIterable, Hashable {
+        case person
+        case address
+        case office
+        case entrance
+        case metro
+        case other
+
+        var title: String {
+            switch self {
+            case .person: return "Человеку"
+            case .address: return "По адресу"
+            case .office: return "В офис"
+            case .entrance: return "До подъезда"
+            case .metro: return "К метро"
+            case .other: return "Другое"
+            }
+        }
+    }
+
+    enum Urgency: String, CaseIterable, Hashable {
+        case now
+        case today
+        case scheduled
+        case flexible
+
+        var title: String {
+            switch self {
+            case .now: return "Сейчас"
+            case .today: return "Сегодня"
+            case .scheduled: return "Ко времени"
+            case .flexible: return "Не срочно"
+            }
+        }
+    }
+
+    enum WeightCategory: String, CaseIterable, Hashable {
+        case upTo1kg = "up_to_1kg"
+        case upTo3kg = "up_to_3kg"
+        case upTo7kg = "up_to_7kg"
+        case upTo15kg = "up_to_15kg"
+        case over15kg = "over_15kg"
+
+        var title: String {
+            switch self {
+            case .upTo1kg: return "До 1 кг"
+            case .upTo3kg: return "До 3 кг"
+            case .upTo7kg: return "До 7 кг"
+            case .upTo15kg: return "До 15 кг"
+            case .over15kg: return "Тяжелее"
+            }
+        }
+    }
+
+    enum SizeCategory: String, CaseIterable, Hashable {
+        case pocket
+        case hand
+        case backpack
+        case trunk
+        case bulky
+
+        var title: String {
+            switch self {
+            case .pocket: return "Карман"
+            case .hand: return "В руку"
+            case .backpack: return "В рюкзак"
+            case .trunk: return "В багажник"
+            case .bulky: return "Крупное"
+            }
+        }
+    }
+
+    let actionType: ActionType?
+    let resolvedCategory: ResolvedCategory?
+    let itemType: String?
+    let purchaseType: String?
+    let helpType: String?
+    let sourceKind: SourceKind?
+    let destinationKind: DestinationKind?
+    let urgency: Urgency?
+    let requiresVehicle: Bool
+    let needsTrunk: Bool
+    let requiresCarefulHandling: Bool
+    let needsLoader: Bool
+    let requiresLiftToFloor: Bool
+    let hasElevator: Bool
+    let waitOnSite: Bool
+    let contactless: Bool
+    let requiresReceipt: Bool
+    let requiresConfirmationCode: Bool
+    let callBeforeArrival: Bool
+    let photoReportRequired: Bool
+    let weightCategory: WeightCategory?
+    let sizeCategory: SizeCategory?
+    let estimatedTaskMinutes: Int?
+    let waitingMinutes: Int?
+    let budgetMin: Int?
+    let budgetMax: Int?
+    let sourceAddress: String?
+    let destinationAddress: String?
+    let taskBrief: String?
+    let notes: String?
+}
+
+extension AnnouncementDTO {
+    var structuredData: AnnouncementStructuredData {
+        AnnouncementStructuredData(
+            actionType: rawValue(for: ["user_action_type", "action_type"])
+                .flatMap(AnnouncementStructuredData.ActionType.init(rawValue:)),
+            resolvedCategory: rawValue(for: ["resolved_category"])
+                .flatMap(AnnouncementStructuredData.ResolvedCategory.init(rawValue:)),
+            itemType: rawValue(for: ["item_type"]),
+            purchaseType: rawValue(for: ["purchase_type"]),
+            helpType: rawValue(for: ["help_type"]),
+            sourceKind: normalizedSourceKind,
+            destinationKind: rawValue(for: ["destination_kind"])
+                .flatMap(AnnouncementStructuredData.DestinationKind.init(rawValue:)),
+            urgency: rawValue(for: ["urgency"])
+                .flatMap(AnnouncementStructuredData.Urgency.init(rawValue:)),
+            requiresVehicle: boolValue(for: ["requires_vehicle"]),
+            needsTrunk: boolValue(for: ["needs_trunk"]),
+            requiresCarefulHandling: boolValue(for: ["requires_careful_handling"]),
+            needsLoader: boolValue(for: ["needs_loader", "need_loader"]),
+            requiresLiftToFloor: boolValue(for: ["requires_lift_to_floor"]),
+            hasElevator: boolValue(for: ["has_elevator"]),
+            waitOnSite: boolValue(for: ["wait_on_site"]),
+            contactless: boolValue(for: ["contactless"]),
+            requiresReceipt: boolValue(for: ["requires_receipt"]),
+            requiresConfirmationCode: boolValue(for: ["requires_confirmation_code"]),
+            callBeforeArrival: boolValue(for: ["call_before_arrival"]),
+            photoReportRequired: boolValue(for: ["photo_report_required"]),
+            weightCategory: rawValue(for: ["weight_category"])
+                .flatMap(AnnouncementStructuredData.WeightCategory.init(rawValue:)),
+            sizeCategory: rawValue(for: ["size_category"])
+                .flatMap(AnnouncementStructuredData.SizeCategory.init(rawValue:)),
+            estimatedTaskMinutes: intValue(forAny: ["estimated_task_minutes"]),
+            waitingMinutes: intValue(forAny: ["waiting_minutes"]),
+            budgetMin: budgetMinValue,
+            budgetMax: budgetMaxValue ?? budgetValue,
+            sourceAddress: primarySourceAddress,
+            destinationAddress: primaryDestinationAddress,
+            taskBrief: rawValue(for: ["task_brief"]),
+            notes: rawValue(for: ["notes"])
+        )
+    }
+
+    var primarySourceAddress: String? {
+        rawValue(for: ["source_address", "pickup_address", "address"])
+    }
+
+    var primaryDestinationAddress: String? {
+        rawValue(for: ["destination_address", "dropoff_address"])
+    }
+
+    var mapCoordinate: CLLocationCoordinate2D? {
+        pointCoordinate(for: ["point", "pickup_point", "help_point", "source_point"])
+            ?? pointCoordinate(for: ["dropoff_point", "destination_point"])
+    }
+
+    var sourceCoordinate: CLLocationCoordinate2D? {
+        pointCoordinate(for: ["pickup_point", "help_point", "point", "source_point"])
+    }
+
+    var destinationCoordinate: CLLocationCoordinate2D? {
+        pointCoordinate(for: ["dropoff_point", "destination_point"])
+    }
+
+    var searchableText: String {
+        let structured = structuredData
+        var parts: [String] = [
+            title,
+            structured.actionType?.title,
+            structured.sourceKind?.title,
+            structured.destinationKind?.title,
+            structured.urgency?.title,
+            structured.itemType,
+            structured.purchaseType,
+            structured.helpType,
+            structured.taskBrief,
+            structured.notes,
+            primarySourceAddress,
+            primaryDestinationAddress,
+        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        if let generatedTags = data["generated_tags"]?.arrayValue {
+            parts.append(contentsOf: generatedTags.compactMap(\.stringValue))
+        }
+        if let hints = data["ai_hints"]?.arrayValue {
+            parts.append(contentsOf: hints.compactMap(\.stringValue))
+        }
+
+        return parts
+            .joined(separator: " ")
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    var shortStructuredSubtitle: String {
+        let structured = structuredData
+        var parts: [String] = []
+
+        if let action = structured.actionType?.title {
+            parts.append(action)
+        }
+
+        if let object = structured.helpType ?? structured.purchaseType ?? structured.itemType {
+            parts.append(Self.humanize(rawValue: object))
+        }
+
+        if let source = primarySourceAddress, !source.isEmpty {
+            parts.append(source)
+        } else if let sourceTitle = structured.sourceKind?.title {
+            parts.append(sourceTitle)
+        }
+
+        return parts.prefix(3).joined(separator: " • ")
+    }
+
+    var structuredBadges: [String] {
+        let structured = structuredData
+        var badges: [String] = []
+
+        if structured.actionType == .proHelp { badges.append("Профи") }
+        if structured.requiresVehicle { badges.append("Машина") }
+        if structured.needsTrunk { badges.append("Багажник") }
+        if structured.requiresCarefulHandling { badges.append("Аккуратно") }
+        if structured.needsLoader { badges.append("Грузчик") }
+        if structured.requiresLiftToFloor { badges.append("Подъём") }
+        if structured.urgency == .now || structured.urgency == .today { badges.append("Срочно") }
+        if structured.sourceKind == .pickupPoint { badges.append("ПВЗ") }
+        if structured.purchaseType == "groceries" || structured.itemType == "groceries" { badges.append("Продукты") }
+        if let size = structured.sizeCategory?.title, badges.count < 4 { badges.append(size) }
+        if let weight = structured.weightCategory?.title, badges.count < 4 { badges.append(weight) }
+
+        return Array(badges.prefix(4))
+    }
+
+    private var normalizedSourceKind: AnnouncementStructuredData.SourceKind? {
+        guard let raw = rawValue(for: ["source_kind"]) else { return nil }
+        switch raw {
+        case "store", "pharmacy", "venue":
+            return .venue
+        case "pickupPoint":
+            return .pickupPoint
+        default:
+            return AnnouncementStructuredData.SourceKind(rawValue: raw)
+        }
+    }
+
+    private func rawValue(for keys: [String]) -> String? {
+        for key in keys {
+            guard let value = data[key]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty else { continue }
+            return value
+        }
+        return nil
+    }
+
+    private func boolValue(for keys: [String]) -> Bool {
+        for key in keys {
+            if let value = data[key]?.boolValue {
+                return value
+            }
+        }
+        return false
+    }
+
+    private func intValue(forAny keys: [String]) -> Int? {
+        for key in keys {
+            if let value = data[key] {
+                return Self.intValue(from: value)
+            }
+        }
+        return nil
+    }
+
+    private func pointCoordinate(for keys: [String]) -> CLLocationCoordinate2D? {
+        for key in keys {
+            guard let object = data[key]?.objectValue,
+                  let lat = object["lat"]?.doubleValue,
+                  let lon = object["lon"]?.doubleValue,
+                  (-90...90).contains(lat),
+                  (-180...180).contains(lon) else { continue }
+            return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        }
+        return nil
+    }
+
+    private static func humanize(rawValue: String) -> String {
+        rawValue
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .capitalized(with: .current)
     }
 }

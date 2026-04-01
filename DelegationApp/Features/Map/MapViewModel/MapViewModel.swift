@@ -1,5 +1,6 @@
-import SwiftUI
+import CoreLocation
 import Foundation
+import SwiftUI
 
 #if canImport(YandexMapsMobile)
 import YandexMapsMobile
@@ -13,213 +14,163 @@ struct MapAdPin: Identifiable {
 }
 
 enum MapDisplayMode {
-    case real
+    case apple
+    case yandex
     case placeholder
 }
 
 enum MapDisplayConfig {
     static func defaultMode() -> MapDisplayMode {
-        #if DEBUG
-        return .real
-        #else
-        return .real
-        #endif
+        .apple
     }
 }
 
-struct MapCanvasView: View {
-    @Binding var centerPoint: YMKPoint?
-    let pins: [MapAdPin]
-    let selectedPinID: String?
-    let routePolyline: YMKPolyline?
-    let shouldFitRoute: Bool
-    let onRouteFitted: () -> Void
-    let onPinTap: (String) -> Void
-    let mode: MapDisplayMode
-
-    var body: some View {
-        Group {
-            switch mode {
-            case .real:
-                YandexMapView(
-                    centerPoint: $centerPoint,
-                    pins: pins,
-                    selectedPinID: selectedPinID,
-                    routePolyline: routePolyline,
-                    shouldFitRoute: shouldFitRoute,
-                    onRouteFitted: onRouteFitted,
-                    onPinTap: onPinTap
-                )
-            case .placeholder:
-                Rectangle()
-                    .fill(Theme.ColorToken.milk)
-                    .overlay(
-                        VStack(spacing: 8) {
-                            Image(systemName: "map")
-                                .font(.system(size: 32))
-                                .foregroundColor(Theme.ColorToken.textSecondary)
-                            Text("Map placeholder")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Theme.ColorToken.textSecondary)
-                        }
-                    )
-            }
-        }
-    }
+enum MapContentMode {
+    case map
+    case list
 }
-
- #if canImport(YandexMapsMobile)
-@MainActor
-private final class DrivingRouteService {
-    enum RouteError: LocalizedError {
-        case unavailable
-        case noRoute
-
-        var errorDescription: String? {
-            switch self {
-            case .unavailable:
-                return "Маршрутизация недоступна"
-            case .noRoute:
-                return "Маршрут не найден"
-            }
-        }
-    }
-
-    private let router: YMKDrivingRouter?
-    private var session: YMKDrivingSession?
-
-    init() {
-        YandexMapConfigurator.configureIfNeeded()
-        self.router = YMKDirections.sharedInstance()?.createDrivingRouter(withType: .combined)
-    }
-
-    func buildRoute(from: YMKPoint, to: YMKPoint) async throws -> YMKPolyline {
-        guard let router else { throw RouteError.unavailable }
-
-        let requestPoints = [
-            YMKRequestPoint(point: from, type: .waypoint, pointContext: nil, drivingArrivalPointId: nil),
-            YMKRequestPoint(point: to, type: .waypoint, pointContext: nil, drivingArrivalPointId: nil),
-        ]
-        let drivingOptions = YMKDrivingOptions()
-        drivingOptions.routesCount = 1
-        let vehicleOptions = YMKDrivingVehicleOptions()
-
-        return try await withCheckedThrowingContinuation { continuation in
-            var didResume = false
-            session?.cancel()
-            session = router.requestRoutes(
-                with: requestPoints,
-                drivingOptions: drivingOptions,
-                vehicleOptions: vehicleOptions
-            ) { [weak self] routes, error in
-                guard !didResume else { return }
-                didResume = true
-                self?.session = nil
-
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard let route = routes?.first else {
-                    continuation.resume(throwing: RouteError.noRoute)
-                    return
-                }
-                continuation.resume(returning: route.geometry)
-            }
-        }
-    }
-
-    func cancel() {
-        session?.cancel()
-        session = nil
-    }
-}
-#else
-@MainActor
-private final class DrivingRouteService {
-    enum RouteError: LocalizedError {
-        case unavailable
-
-        var errorDescription: String? {
-            "Маршрутизация недоступна"
-        }
-    }
-
-    func buildRoute(from: YMKPoint, to: YMKPoint) async throws -> YMKPolyline {
-        throw RouteError.unavailable
-    }
-
-    func cancel() {}
-}
-#endif
 
 @MainActor
 final class MapViewModel: ObservableObject {
-    // MARK: - Фильтры
-    @Published var chips: [String] = [
-        "Купить", "Доставить", "Забрать",
-        "Помочь", "Перенести", "Другое"
-    ]
-    @Published var selected: Set<String> = []
+    @Published var searchText: String = "" {
+        didSet {
+            rebuildPresentations()
+        }
+    }
+    @Published var filters = AnnouncementSearchFilters() {
+        didSet {
+            rebuildPresentations()
+        }
+    }
+    @Published var contentMode: MapContentMode = .map
+    @Published var isFiltersPresented: Bool = false
+    @Published var sheetDetent: MapSheetDetent = .peek
+    @Published var sortMode: MapTaskSortMode = .smart {
+        didSet {
+            rebuildPresentations()
+        }
+    }
 
-    // MARK: - Моковые задачи (пока оставляем)
-    @Published var tasks: [TaskItem] = []
+    @Published var routeStartAddress: String = ""
+    @Published var routeEndAddress: String = ""
+    @Published var isBuildingRoute: Bool = false
+    @Published var routeErrorMessage: String?
 
-    // MARK: - Объявления на карте
     @Published private(set) var announcements: [AnnouncementDTO] = []
-    @Published private(set) var pins: [MapAdPin] = []
+    @Published private(set) var filteredTasks: [MapTaskPresentation] = []
     @Published var selectedAnnouncement: AnnouncementDTO?
-    @Published var selectedPinID: String?
-    @Published var routePolyline: YMKPolyline?
-    @Published var shouldFitRoute: Bool = false
+    @Published var selectedAnnouncementID: String?
 
-    // MARK: - Поиск и карта
-    @Published var searchText: String = ""
-    @Published var centerPoint: YMKPoint?
+    @Published var visibleCenterCoordinate: CLLocationCoordinate2D? {
+        didSet {
+            guard shouldRefresh(for: oldValue, newValue: visibleCenterCoordinate) else { return }
+            rebuildPresentations()
+        }
+    }
+    @Published var cameraCommand: AppleTaskMapCameraCommand?
+    @Published var shouldFitRoute: Bool = false
     @Published var errorMessage: String?
 
-    private let service: TaskService
+    @Published private(set) var routeState: MapTaskRouteState?
+
+    let service: TaskService
     private let announcementService: AnnouncementService
     private let searchService: AddressSearchService
-    private let routeService: DrivingRouteService
-    private var geocodeCache: [String: YMKPoint] = [:]
+    private let routeGeometryBuilder: RouteGeometryBuilding
+    private let locationProvider: MapUserLocationProvider
+
+    private var autoRefreshTask: Task<Void, Never>?
 
     init(
         service: TaskService,
         announcementService: AnnouncementService,
-        searchService: AddressSearchService = AddressSearchService()
+        searchService: AddressSearchService = AddressSearchService(),
+        routeGeometryBuilder: RouteGeometryBuilding? = nil,
+        locationProvider: MapUserLocationProvider = MapUserLocationProvider()
     ) {
         self.service = service
         self.announcementService = announcementService
         self.searchService = searchService
-        self.routeService = DrivingRouteService()
+        self.routeGeometryBuilder = routeGeometryBuilder ?? AppleDirectionsRouteBuilder()
+        self.locationProvider = locationProvider
+        self.visibleCenterCoordinate = CLLocationCoordinate2D(latitude: 55.751244, longitude: 37.618423)
 
-        self.tasks = service.loadNearbyTasks()
-        self.centerPoint = YMKPoint(latitude: 55.751244, longitude: 37.618423)
-    }
-
-    func toggle(_ chip: String) {
-        if selected.contains(chip) { selected.remove(chip) }
-        else { selected.insert(chip) }
-    }
-
-    func performSearch() {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
-            errorMessage = nil
-            return
+        self.locationProvider.onCoordinate = { [weak self] coordinate in
+            guard let self else { return }
+            self.visibleCenterCoordinate = coordinate
+            self.cameraCommand = AppleTaskMapCameraCommand(kind: .center(coordinate))
         }
+    }
 
-        searchService.searchAddress(query) { [weak self] point in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if let point {
-                    self.centerPoint = point
-                    self.errorMessage = nil
-                } else {
-                    self.errorMessage = "Адрес не найден"
-                }
-            }
+    deinit {
+        autoRefreshTask?.cancel()
+    }
+
+    var quickFilters: [MapQuickActionFilter] {
+        MapQuickActionFilter.allCases
+    }
+
+    var isListMode: Bool {
+        contentMode == .list
+    }
+
+    var surfaceToggleSystemImage: String {
+        isListMode ? "map" : "list.bullet.rectangle.portrait"
+    }
+
+    var filterButtonTitle: String {
+        if filters.advancedFilterCount > 0 {
+            return "Фильтры • \(filters.advancedFilterCount)"
+        }
+        if hasRoute {
+            return "Маршрут и фильтры"
+        }
+        return "Фильтры и маршрут"
+    }
+
+    var filterButtonSubtitle: String {
+        if let routeMatchedCountText {
+            return routeMatchedCountText
+        }
+        if filters.hasAnyAdvancedFilter {
+            return "Точная настройка списка и карты"
+        }
+        return "Откройте полный набор параметров"
+    }
+
+    var displayedCountText: String {
+        "\(filteredTasks.count.formatted(.number.grouping(.automatic))) из \(announcements.count.formatted(.number.grouping(.automatic))) объявлений"
+    }
+
+    var routeMatchedCountText: String? {
+        guard let routeState, routeState.matchedCount > 0 else { return nil }
+        return "Из них \(routeState.matchedCount.formatted(.number.grouping(.automatic))) задач по пути"
+    }
+
+    var routeMetaText: String? {
+        guard let routeState else { return nil }
+        let distanceKm = Double(routeState.distanceMeters) / 1000
+        let minutes = max(1, Int((Double(routeState.durationSeconds) / 60).rounded()))
+        return String(format: "%.1f км • %d мин", distanceKm, minutes)
+    }
+
+    var hasRoute: Bool {
+        routeState != nil
+    }
+
+    var previewTasks: [MapTaskPresentation] {
+        Array(filteredTasks.prefix(sheetDetent == .half ? 3 : 5))
+    }
+
+    var mappedPins: [MapAdPin] {
+        filteredTasks.compactMap { task in
+            guard let coordinate = task.coordinate else { return nil }
+            return MapAdPin(
+                id: task.id,
+                point: YMKPoint(latitude: coordinate.latitude, longitude: coordinate.longitude),
+                label: task.markerText,
+                announcement: task.announcement
+            )
         }
     }
 
@@ -227,135 +178,264 @@ final class MapViewModel: ObservableObject {
         do {
             let list = try await announcementService.publicAnnouncements()
             announcements = list
-            pins = list.compactMap { Self.makePin(from: $0) }
+            refreshSelection()
+            rebuildPresentations()
         } catch {
             errorMessage = "Не удалось загрузить объявления: \(error.localizedDescription)"
         }
     }
 
+    func startAutoRefresh() {
+        guard autoRefreshTask == nil else { return }
+
+        autoRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !Task.isCancelled, let self else { break }
+                await self.reloadPins()
+            }
+
+            await MainActor.run {
+                self?.autoRefreshTask = nil
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+    }
+
+    func performSearch() {
+        rebuildPresentations()
+    }
+
+    func toggleQuickFilter(_ filter: MapQuickActionFilter) {
+        filters.toggleAction(filter)
+    }
+
+    func toggleContentMode() {
+        contentMode = isListMode ? .map : .list
+    }
+
+    func openListMode() {
+        contentMode = .list
+    }
+
+    func showMapMode() {
+        contentMode = .map
+    }
+
+    func presentFilters() {
+        isFiltersPresented = true
+    }
+
+    func dismissFilters() {
+        isFiltersPresented = false
+    }
+
+    func setSheetDetent(_ detent: MapSheetDetent) {
+        sheetDetent = detent
+    }
+
     func selectAnnouncement(pinID: String) async {
-        guard let pin = pins.first(where: { $0.id == pinID }) else { return }
+        guard let task = filteredTasks.first(where: { $0.id == pinID }) else { return }
+        selectPresentation(task, presentDetails: true)
+    }
 
-        selectedPinID = pinID
-        selectedAnnouncement = pin.announcement
-        errorMessage = nil
+    func selectAnnouncementFromList(_ task: MapTaskPresentation) {
+        selectPresentation(task, presentDetails: true)
+    }
 
-        await buildRouteIfNeeded(for: pin.announcement, expectedPinID: pinID)
+    func highlightAnnouncement(_ task: MapTaskPresentation) {
+        selectPresentation(task, presentDetails: false)
     }
 
     func clearSelection() {
         selectedAnnouncement = nil
-        selectedPinID = nil
-        clearRoute()
+        selectedAnnouncementID = nil
+    }
+
+    func zoomIn() {
+        cameraCommand = AppleTaskMapCameraCommand(kind: .zoomIn)
+    }
+
+    func zoomOut() {
+        cameraCommand = AppleTaskMapCameraCommand(kind: .zoomOut)
+    }
+
+    func centerOnUser() {
+        locationProvider.requestLocation()
     }
 
     func consumeRouteFitRequest() {
         shouldFitRoute = false
     }
 
-    private func clearRoute() {
-        routeService.cancel()
-        routePolyline = nil
-        shouldFitRoute = false
+    func consumeCameraCommand(_ id: UUID) {
+        guard cameraCommand?.id == id else { return }
+        cameraCommand = nil
     }
 
-    private func buildRouteIfNeeded(for announcement: AnnouncementDTO, expectedPinID: String) async {
-        clearRoute()
-        guard announcement.category.lowercased() == "delivery" else { return }
+    func buildRoute() async {
+        let startAddress = routeStartAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let endAddress = routeEndAddress.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let points = await resolveDeliveryRoutePoints(for: announcement) else {
-            guard selectedPinID == expectedPinID else { return }
-            errorMessage = "Не удалось определить точки маршрута для объявления"
+        guard !startAddress.isEmpty, !endAddress.isEmpty else {
+            routeErrorMessage = "Заполните адрес отправления и прибытия"
             return
         }
 
+        isBuildingRoute = true
+        routeErrorMessage = nil
+        defer { isBuildingRoute = false }
+
+        guard let startPoint = await searchService.searchAddress(startAddress) else {
+            routeErrorMessage = "Не удалось найти стартовый адрес"
+            return
+        }
+
+        guard let endPoint = await searchService.searchAddress(endAddress) else {
+            routeErrorMessage = "Не удалось найти конечный адрес"
+            return
+        }
+
+        let startCoordinate = CLLocationCoordinate2D(latitude: startPoint.latitude, longitude: startPoint.longitude)
+        let endCoordinate = CLLocationCoordinate2D(latitude: endPoint.latitude, longitude: endPoint.longitude)
+
         do {
-            let polyline = try await routeService.buildRoute(from: points.start, to: points.end)
-            guard selectedPinID == expectedPinID else { return }
-            routePolyline = polyline
+            let geometry = try await routeGeometryBuilder.buildRoute(
+                start: startCoordinate,
+                end: endCoordinate,
+                travelMode: .driving
+            )
+            let coordinates = geometry.polyline.compactMap { pair -> CLLocationCoordinate2D? in
+                guard pair.count >= 2 else { return nil }
+                return CLLocationCoordinate2D(latitude: pair[0], longitude: pair[1])
+            }
+            let matched = MapTaskRouteMatcher.matchedDistances(
+                announcements: announcements,
+                routeCoordinates: coordinates
+            )
+            routeState = MapTaskRouteState(
+                startAddress: startAddress,
+                endAddress: endAddress,
+                startCoordinate: startCoordinate,
+                endCoordinate: endCoordinate,
+                coordinates: coordinates,
+                distanceMeters: geometry.distanceMeters,
+                durationSeconds: geometry.durationSeconds,
+                matchedDistances: matched
+            )
             shouldFitRoute = true
+            rebuildPresentations()
         } catch {
-            guard selectedPinID == expectedPinID else { return }
-            errorMessage = "Не удалось построить маршрут: \(error.localizedDescription)"
+            routeErrorMessage = error.localizedDescription
         }
     }
 
-    private func resolveDeliveryRoutePoints(
-        for announcement: AnnouncementDTO
-    ) async -> (start: YMKPoint, end: YMKPoint)? {
-
-        let data = announcement.data
-
-        var start: YMKPoint? = Self.extractPoint(from: data, keys: ["pickup_point", "point"])
-        if start == nil {
-            start = await geocodeFromData(data: data, key: "pickup_address")
+    func clearRoute() {
+        routeState = nil
+        routeErrorMessage = nil
+        if filters.onlyOnRoute {
+            filters.onlyOnRoute = false
+        } else {
+            rebuildPresentations()
         }
-
-        var end: YMKPoint? = Self.extractPoint(from: data, keys: ["dropoff_point"])
-        if end == nil {
-            end = await geocodeFromData(data: data, key: "dropoff_address")
-        }
-
-        guard let start, let end else { return nil }
-        return (start, end)
-    }
-    private func geocodeFromData(data: [String: JSONValue], key: String) async -> YMKPoint? {
-        guard
-            let address = data[key]?.stringValue?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-            !address.isEmpty
-        else { return nil }
-
-        if let cached = geocodeCache[address] {
-            return cached
-        }
-
-        let point = await searchService.searchAddress(address)
-        if let point {
-            geocodeCache[address] = point
-        }
-        return point
     }
 
-    private static func makePin(from announcement: AnnouncementDTO) -> MapAdPin? {
-        guard let point = extractDisplayPoint(from: announcement) else { return nil }
-        return MapAdPin(
-            id: announcement.id,
-            point: point,
-            label: markerLabel(from: announcement),
-            announcement: announcement
+    private func rebuildPresentations() {
+        let mapped = MapTaskPresentationMapper.map(
+            announcements: announcements,
+            filters: filters,
+            query: searchText,
+            referenceCoordinate: visibleCenterCoordinate,
+            routeState: routeState
         )
+        filteredTasks = MapTaskPresentationMapper.sorted(
+            presentations: mapped,
+            sortMode: sortMode
+        )
+
+        if let selectedAnnouncementID,
+           let refreshed = filteredTasks.first(where: { $0.id == selectedAnnouncementID }) {
+            selectedAnnouncement = refreshed.announcement
+        } else if selectedAnnouncementID != nil,
+                  !announcements.contains(where: { $0.id == selectedAnnouncementID }) {
+            clearSelection()
+        }
     }
 
-    private static func extractDisplayPoint(from announcement: AnnouncementDTO) -> YMKPoint? {
-        let data = announcement.data
-        if announcement.category.lowercased() == "delivery" {
-            if let p = extractPoint(from: data, keys: ["pickup_point", "point"]) { return p }
-        } else if announcement.category.lowercased() == "help" {
-            if let p = extractPoint(from: data, keys: ["help_point", "point"]) { return p }
+    private func refreshSelection() {
+        guard let selectedAnnouncementID else { return }
+        guard let refreshed = announcements.first(where: { $0.id == selectedAnnouncementID }) else {
+            clearSelection()
+            return
         }
-        return extractPoint(from: data, keys: ["point", "pickup_point", "help_point"])
+        selectedAnnouncement = refreshed
     }
 
-    private static func extractPoint(
-        from data: [String: JSONValue],
-        keys: [String]
-    ) -> YMKPoint? {
-        for key in keys {
-            guard let pointVal = data[key]?.objectValue else { continue }
-            guard
-                let lat = pointVal["lat"]?.doubleValue,
-                let lon = pointVal["lon"]?.doubleValue
-            else { continue }
-            return YMKPoint(latitude: lat, longitude: lon)
+    private func selectPresentation(_ task: MapTaskPresentation, presentDetails: Bool) {
+        selectedAnnouncementID = task.id
+        cameraCommand = task.coordinate.map { AppleTaskMapCameraCommand(kind: .center($0)) }
+        if presentDetails {
+            selectedAnnouncement = task.announcement
         }
-        return nil
+        errorMessage = nil
     }
 
-    private static func markerLabel(from announcement: AnnouncementDTO) -> String {
-        if let formattedBudgetText = announcement.formattedBudgetText {
-            return formattedBudgetText
+    private func shouldRefresh(
+        for oldValue: CLLocationCoordinate2D?,
+        newValue: CLLocationCoordinate2D?
+    ) -> Bool {
+        guard let oldValue, let newValue else { return true }
+        let oldLocation = CLLocation(latitude: oldValue.latitude, longitude: oldValue.longitude)
+        let newLocation = CLLocation(latitude: newValue.latitude, longitude: newValue.longitude)
+        return oldLocation.distance(from: newLocation) > 150
+    }
+}
+
+final class MapUserLocationProvider: NSObject {
+    var onCoordinate: ((CLLocationCoordinate2D) -> Void)?
+
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    }
+
+    func requestLocation() {
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .restricted, .denied:
+            break
+        default:
+            manager.requestLocation()
         }
-        return announcement.category.lowercased() == "delivery" ? "Доставка" : "Помощь"
+    }
+}
+
+extension MapUserLocationProvider: CLLocationManagerDelegate {
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            manager.requestLocation()
+        default:
+            break
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let coordinate = locations.last?.coordinate else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.onCoordinate?(coordinate)
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // Не блокируем карту из-за геолокации.
     }
 }

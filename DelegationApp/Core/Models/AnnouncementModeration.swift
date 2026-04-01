@@ -34,6 +34,26 @@ struct ModerationReason: Identifiable {
     let canAppeal: Bool
 
     var severity: ModerationSeverity { canAppeal ? .warning : .danger }
+
+    var isTechnicalIssue: Bool {
+        let normalizedCode = code.uppercased()
+        let normalizedDetails = details.lowercased()
+
+        if normalizedCode == "TEXT_SYSTEM_UNAVAILABLE" || normalizedCode == "MEDIA_SYSTEM_UNAVAILABLE" {
+            return true
+        }
+
+        if normalizedCode == "TEXT_UNKNOWN",
+           (normalizedDetails.contains("ollama error")
+            || normalizedDetails.contains("timed out")
+            || normalizedDetails.contains("connection refused")
+            || normalizedDetails.contains("non-json")
+            || normalizedDetails.contains("не-json")) {
+            return true
+        }
+
+        return false
+    }
 }
 
 struct ModerationDecision {
@@ -65,6 +85,14 @@ extension JSONValue {
 }
 
 extension AnnouncementDTO {
+    private var visibleModerationReasons: [ModerationReason] {
+        (moderationPayload?.reasons ?? []).filter { !$0.isTechnicalIssue }
+    }
+
+    private var hasOnlyTechnicalModerationIssues: Bool {
+        guard let reasons = moderationPayload?.reasons, !reasons.isEmpty else { return false }
+        return reasons.allSatisfy(\.isTechnicalIssue)
+    }
 
     var normalizedStatus: String {
         switch status.lowercased() {
@@ -132,22 +160,36 @@ extension AnnouncementDTO {
     }
 
     var decisionMessage: String? {
-        moderationPayload?.decision?.message
+        if hasOnlyTechnicalModerationIssues {
+            return "Автоматическая проверка временно недоступна. Объявление ждёт дополнительной проверки."
+        }
+
+        guard let message = moderationPayload?.decision?.message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !message.isEmpty else {
+            return nil
+        }
+
+        if !hasAttachedMedia,
+           normalizedStatus == "pending_review",
+           message.localizedCaseInsensitiveContains("проверим фото") {
+            return "На проверке: объявление отправлено на модерацию."
+        }
+
+        return message
     }
 
     var maxReasonSeverity: ModerationSeverity {
-        (moderationPayload?.reasons.map { $0.severity }.max()) ?? .none
+        visibleModerationReasons.map(\.severity).max() ?? .none
     }
 
     func severity(for field: String) -> ModerationSeverity {
-        guard let reasons = moderationPayload?.reasons else { return .none }
-        return reasons
+        return visibleModerationReasons
             .filter { $0.field == field }
             .map { $0.severity }
             .max() ?? .none
     }
 
     var hasModerationIssues: Bool {
-        !(moderationPayload?.reasons.isEmpty ?? true)
+        !visibleModerationReasons.isEmpty
     }
 }

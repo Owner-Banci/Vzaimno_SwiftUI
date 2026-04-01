@@ -81,6 +81,18 @@ struct RouteDetailsDTO: Decodable {
         case polyline
         case tasksByRoute = "tasks_by_route"
     }
+
+    var polylineCoordinates: [CLLocationCoordinate2D] {
+        polyline.compactMap { pair in
+            guard pair.count >= 2 else { return nil }
+            let latitude = pair[0]
+            let longitude = pair[1]
+            guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
+                return nil
+            }
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+    }
 }
 
 struct TaskByRouteDTO: Decodable, Identifiable {
@@ -119,8 +131,31 @@ struct TaskByRouteDTO: Decodable, Identifiable {
         return "\(rounded) м от маршрута"
     }
 
-    var coordinate: GeoPoint? {
+    var coordinate: CLLocationCoordinate2D? {
         guard let latitude, let longitude else { return nil }
-        return GeoPoint(latitude: latitude, longitude: longitude)
+        guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
+            return nil
+        }
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+enum RouteMapPinKind: Hashable {
+    case start
+    case end
+    case recommendedTask
+    case debugTask
+}
+
+struct RouteMapPin: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let latitude: Double
+    let longitude: Double
+    let kind: RouteMapPinKind
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 }

@@ -69,8 +69,8 @@ struct APIClient {
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
-        config.timeoutIntervalForResource = 90
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 180
         self.session = URLSession(configuration: config)
     }
 
@@ -174,5 +174,4 @@ struct APIClient {
     }
     
 }
-
 

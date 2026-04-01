@@ -238,50 +238,11 @@ private struct AnnouncementRow: View {
     let item: AnnouncementDTO
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            AnnouncementImageView(
-                url: item.previewImageURL,
-                width: 84,
-                height: 84,
-                cornerRadius: 14
-            )
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.title)
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
-
-                        Text(categorySubtitle(item.category))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    HStack(spacing: 6) {
-                        if item.hasModerationIssues {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(item.maxReasonSeverity.color)
-                        }
-                        StatusBadge(status: item.normalizedStatus)
-                    }
-                }
-
-                if let msg = item.decisionMessage, !msg.isEmpty {
-                    Text(msg)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                if item.isActiveStatus, item.offersCount > 0 {
-                    Text("Отклики: \(item.offersCount)")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.ColorToken.turquoise)
-                }
+        Group {
+            if item.hasAttachedMedia {
+                mediaRow
+            } else {
+                textOnlyRow
             }
         }
         .padding(14)
@@ -296,11 +257,112 @@ private struct AnnouncementRow: View {
         .softCardShadow()
     }
 
+    private var mediaRow: some View {
+        HStack(alignment: .top, spacing: 12) {
+            AnnouncementImageView(
+                url: item.previewImageURL,
+                width: 84,
+                height: 84,
+                cornerRadius: 14
+            )
+
+            VStack(alignment: .leading, spacing: 8) {
+                header(showCategoryInline: true)
+                secondaryContent
+            }
+        }
+    }
+
+    private var textOnlyRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header(showCategoryInline: false)
+            mediaFreeMetaRow
+            secondaryContent
+        }
+    }
+
+    @ViewBuilder
+    private func header(showCategoryInline: Bool) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+
+                if showCategoryInline {
+                    Text(categorySubtitle(item.category))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 6) {
+                if item.hasModerationIssues {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(item.maxReasonSeverity.color)
+                }
+                StatusBadge(status: item.normalizedStatus)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var secondaryContent: some View {
+        if let msg = item.decisionMessage, !msg.isEmpty {
+            Text(msg)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+
+        if item.isActiveStatus, item.offersCount > 0 {
+            Text("Отклики: \(item.offersCount)")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Theme.ColorToken.turquoise)
+        }
+    }
+
+    private var mediaFreeMetaRow: some View {
+        HStack(spacing: 8) {
+            infoPill(title: categorySubtitle(item.category), systemImage: categoryIcon(item.category))
+            infoPill(title: "Без фото", systemImage: "photo.slash")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func infoPill(title: String, systemImage: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(Theme.ColorToken.textSecondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Theme.ColorToken.milk)
+        )
+    }
+
     private func categorySubtitle(_ raw: String) -> String {
         switch raw {
         case "delivery": return "Доставка и поручения"
         case "help": return "Помощь"
         default: return raw
+        }
+    }
+
+    private func categoryIcon(_ raw: String) -> String {
+        switch raw {
+        case "delivery": return "shippingbox"
+        case "help": return "hands.sparkles"
+        default: return "doc.text"
         }
     }
 }

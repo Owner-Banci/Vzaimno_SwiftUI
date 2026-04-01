@@ -37,17 +37,25 @@ final class CreateAdFlowViewModel: ObservableObject {
             return nil
         }
 
-        let request = draft.toCreateRequest(status: "pending_review")
+        let moderationPlan: AnnouncementModerationRoutingPlan
+        do {
+            moderationPlan = try AnnouncementModerationRoutingHelper.makePlan(for: draft)
+        } catch {
+            errorText = error.localizedDescription
+            return nil
+        }
+
+        let request = draft.toCreateRequest(status: moderationPlan.requestStatus)
         let localID = "local-\(UUID().uuidString)"
         let optimisticAnnouncement = makeOptimisticAnnouncement(
             localID: localID,
             request: request,
             draft: draft
         )
-//        let token = token
         let service = service
         let publishCompletion = publishCompletion
         let mediaData = draft.mediaJPEGData
+        let shouldUploadMedia = moderationPlan.shouldUploadMedia
 
         isSubmitting = true
         Task {
@@ -60,7 +68,7 @@ final class CreateAdFlowViewModel: ObservableObject {
             do {
                 var created = try await service.createAnnouncement(token: token, request: request)
 
-                if !mediaData.isEmpty {
+                if shouldUploadMedia && !mediaData.isEmpty {
                     do {
                         created = try await service.uploadAnnouncementMedia(
                             token: token,
@@ -103,7 +111,7 @@ final class CreateAdFlowViewModel: ObservableObject {
             user_id: session.me?.id ?? "local",
             category: request.category,
             title: request.title,
-            status: "pending_review",
+            status: request.status,
             data: data,
             created_at: ISO8601DateFormatter().string(from: Date())
         )

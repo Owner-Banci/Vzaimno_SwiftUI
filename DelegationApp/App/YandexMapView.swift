@@ -88,8 +88,11 @@ struct YandexMapView: UIViewRepresentable {
         syncRoute(routePolyline, mapObjects: mapObjects, coordinator: context.coordinator)
 
         if shouldFitRoute, let routePolyline {
+            guard canFitRoute(on: mapView) else { return }
             fitCameraToRoute(routePolyline, mapView: mapView)
-            onRouteFitted()
+            DispatchQueue.main.async {
+                onRouteFitted()
+            }
             return
         }
 
@@ -258,21 +261,35 @@ struct YandexMapView: UIViewRepresentable {
 
     private func fitCameraToRoute(_ polyline: YMKPolyline, mapView: YMKMapView) {
         let map = mapView.mapWindow.map
-        let width = Float(max(1, mapView.bounds.width))
-        let height = Float(max(1, mapView.bounds.height))
+        let width = Float(mapView.bounds.width)
+        let height = Float(mapView.bounds.height)
+        let geometry = YMKGeometry(polyline: polyline)
 
-        let insetX: Float = 24
-        let insetTop: Float = 80
-        let insetBottom: Float = 220
+        guard width > 48, height > 48 else {
+            let camera = map.cameraPosition(with: geometry, azimuth: 0.0, tilt: 0.0, focus: nil)
+            map.move(with: camera, animation: YMKAnimation(type: .smooth, duration: 0.65), cameraCallback: nil)
+            return
+        }
+
+        let insetX = min(24, max(12, width * 0.08))
+        let insetTop = min(80, max(16, height * 0.12))
+        let insetBottom = min(220, max(24, height * 0.28))
+        let availableHeight = height - insetTop - insetBottom
+        let availableWidth = width - insetX * 2
+
+        guard availableWidth > 24, availableHeight > 24 else {
+            let camera = map.cameraPosition(with: geometry, azimuth: 0.0, tilt: 0.0, focus: nil)
+            map.move(with: camera, animation: YMKAnimation(type: .smooth, duration: 0.65), cameraCallback: nil)
+            return
+        }
 
         let topLeft = YMKScreenPoint(x: insetX, y: insetTop)
         let bottomRight = YMKScreenPoint(
-            x: max(insetX + 1, width - insetX),
-            y: max(insetTop + 1, height - insetBottom)
+            x: width - insetX,
+            y: height - insetBottom
         )
         let focusRect = YMKScreenRect(topLeft: topLeft, bottomRight: bottomRight)
 
-        let geometry = YMKGeometry(polyline: polyline)
         let camera = map.cameraPosition(
           with: geometry,
           azimuth: 0.0,
@@ -280,6 +297,10 @@ struct YandexMapView: UIViewRepresentable {
           focus: focusRect
         )
         map.move(with: camera, animation: YMKAnimation(type: .smooth, duration: 0.65), cameraCallback: nil)
+    }
+
+    private func canFitRoute(on mapView: YMKMapView) -> Bool {
+        mapView.bounds.width > 24 && mapView.bounds.height > 24
     }
 }
 #else

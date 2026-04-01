@@ -26,7 +26,8 @@ struct NewHelpAdFormScreen: View {
                     CreateAdTextField(
                         label: "Название",
                         placeholder: "Например: Помочь донести сумки",
-                        text: $draft.title
+                        text: $draft.title,
+                        mark: draft.moderationMarks["title"]
                     )
 
                     CreateAdBudgetRangeField(
@@ -39,13 +40,21 @@ struct NewHelpAdFormScreen: View {
 
                 CreateAdSectionCard(
                     title: "Адрес",
-                    subtitle: "Где нужна помощь.",
+                    subtitle: "Где нужна помощь. Второй адрес можно указать для маршрута по пути.",
                     accent: sectionAccent
                 ) {
                     CreateAdTextField(
                         label: "Адрес",
                         placeholder: "Введите адрес",
-                        text: $draft.helpAddress
+                        text: $draft.helpAddress,
+                        mark: draft.moderationMarks["address"]
+                    )
+
+                    CreateAdTextField(
+                        label: "Второй адрес",
+                        placeholder: "Опционально",
+                        text: $draft.helpDestinationAddress,
+                        mark: draft.moderationMarks["destination_address"]
                     )
                 }
 
@@ -81,7 +90,8 @@ struct NewHelpAdFormScreen: View {
                     CreateAdTextArea(
                         label: "Комментарий",
                         placeholder: "Например: работа на 30 минут, перчатки не нужны…",
-                        text: $draft.notes
+                        text: $draft.notes,
+                        mark: draft.moderationMarks["notes"]
                     )
                 }
 
@@ -91,7 +101,10 @@ struct NewHelpAdFormScreen: View {
                     subtitle: "Загрузите фото (до 3). Модерация — на сервере.",
                     accent: sectionAccent
                 ) {
-                    AdMediaPickerSection(draft: draft)
+                    AdMediaPickerSection(
+                        draft: draft,
+                        mark: draft.moderationMarks["media"]
+                    )
                 }
             }
             .padding(.horizontal, 20)

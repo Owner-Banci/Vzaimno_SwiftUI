@@ -11,12 +11,23 @@ import PhotosUI
 @MainActor
 struct AdMediaPickerSection: View {
     @ObservedObject var draft: CreateAdDraft
+    var mark: CreateAdDraft.DraftModerationMark? = nil
     @State private var pickerItems: [PhotosPickerItem] = []
 
     var body: some View {
         let hasMediaImages = !draft.mediaImages.isEmpty
 
         VStack(alignment: .leading, spacing: 12) {
+            if let mark {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(mark.severity.color)
+                    Text(mark.details)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             PhotosPicker(
                 selection: $pickerItems,
                 maxSelectionCount: 3,
