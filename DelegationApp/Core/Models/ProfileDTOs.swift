@@ -98,25 +98,82 @@ struct MyReviewsResponseDTO: Codable {
 }
 
 struct UserProfileReviewDTO: Codable {
+    let id: String?
     let from_user_display_name: String?
     let stars: Int
     let text: String?
     let created_at: String
+    let target_role: String?
 
     var domain: UserProfileReview {
         let safeAuthor = normalized(from_user_display_name) ?? "Пользователь"
         let safeText = normalized(text) ?? "Без текста"
         let createdAt = ProfileDateParser.parse(created_at) ?? .now
-        let rawID = "\(safeAuthor)|\(created_at)|\(safeText)|\(stars)"
+        let rawID = id ?? "\(safeAuthor)|\(created_at)|\(safeText)|\(stars)"
 
         return UserProfileReview(
             id: rawID,
             authorName: safeAuthor,
             stars: max(0, min(5, stars)),
             text: safeText,
-            createdAt: createdAt
+            createdAt: createdAt,
+            targetRole: ReviewRole(rawValue: target_role ?? "")
         )
     }
+}
+
+struct ReviewSummaryDTO: Codable {
+    let average: Double
+    let count: Int
+
+    var domain: ReviewSummary {
+        ReviewSummary(average: average, count: count)
+    }
+}
+
+struct ReviewsFeedResponseDTO: Codable {
+    let items: [UserProfileReviewDTO]
+    let selected_role: String
+    let summary: ReviewSummaryDTO
+
+    func domain(fallbackRole: ReviewRole) -> UserReviewFeed {
+        UserReviewFeed(
+            role: ReviewRole(rawValue: selected_role) ?? fallbackRole,
+            summary: summary.domain,
+            reviews: items.map(\.domain)
+        )
+    }
+}
+
+struct ReviewEligibilityDTO: Codable {
+    let can_submit: Bool
+    let already_submitted: Bool
+    let announcement_id: String
+    let announcement_title: String?
+    let thread_id: String?
+    let counterpart_user_id: String?
+    let counterpart_display_name: String?
+    let counterpart_role: String?
+    let message: String?
+
+    var domain: ReviewEligibility {
+        ReviewEligibility(
+            announcementID: announcement_id,
+            announcementTitle: normalized(announcement_title),
+            threadID: normalized(thread_id),
+            counterpartUserID: normalized(counterpart_user_id),
+            counterpartDisplayName: normalized(counterpart_display_name),
+            counterpartRole: ReviewRole(rawValue: counterpart_role ?? ""),
+            canSubmit: can_submit,
+            alreadySubmitted: already_submitted,
+            message: normalized(message)
+        )
+    }
+}
+
+struct SubmitReviewRequestDTO: Codable {
+    let stars: Int
+    let text: String?
 }
 
 struct DeviceRegistrationRequestDTO: Codable {

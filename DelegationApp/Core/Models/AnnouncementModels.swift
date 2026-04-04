@@ -122,15 +122,24 @@ extension AnnouncementDTO {
     }
 
     var budgetValue: Int? {
-        intValue(for: "budget")
+        taskIntValue(
+            paths: [["task", "budget", "amount"]],
+            legacyKeys: ["budget"]
+        ) ?? intValue(for: "budget")
     }
 
     var budgetMinValue: Int? {
-        intValue(for: "budget_min")
+        taskIntValue(
+            paths: [["task", "budget", "min"]],
+            legacyKeys: ["budget_min"]
+        ) ?? intValue(for: "budget_min")
     }
 
     var budgetMaxValue: Int? {
-        intValue(for: "budget_max")
+        taskIntValue(
+            paths: [["task", "budget", "max"]],
+            legacyKeys: ["budget_max"]
+        ) ?? intValue(for: "budget_max")
     }
 
     var formattedBudgetText: String? {
@@ -412,64 +421,178 @@ struct AnnouncementStructuredData: Equatable {
 extension AnnouncementDTO {
     var structuredData: AnnouncementStructuredData {
         AnnouncementStructuredData(
-            actionType: rawValue(for: ["user_action_type", "action_type"])
+            actionType: taskStringValue(
+                paths: [
+                    ["task", "builder", "action_type"],
+                    ["task", "builder", "user_action_type"],
+                ],
+                legacyKeys: ["user_action_type", "action_type"]
+            )
                 .flatMap(AnnouncementStructuredData.ActionType.init(rawValue:)),
-            resolvedCategory: rawValue(for: ["resolved_category"])
+            resolvedCategory: taskStringValue(
+                paths: [["task", "builder", "resolved_category"]],
+                legacyKeys: ["resolved_category"]
+            )
                 .flatMap(AnnouncementStructuredData.ResolvedCategory.init(rawValue:)),
-            itemType: rawValue(for: ["item_type"]),
-            purchaseType: rawValue(for: ["purchase_type"]),
-            helpType: rawValue(for: ["help_type"]),
+            itemType: taskStringValue(
+                paths: [["task", "builder", "item_type"]],
+                legacyKeys: ["item_type"]
+            ),
+            purchaseType: taskStringValue(
+                paths: [["task", "builder", "purchase_type"]],
+                legacyKeys: ["purchase_type"]
+            ),
+            helpType: taskStringValue(
+                paths: [["task", "builder", "help_type"]],
+                legacyKeys: ["help_type"]
+            ),
             sourceKind: normalizedSourceKind,
-            destinationKind: rawValue(for: ["destination_kind"])
+            destinationKind: taskStringValue(
+                paths: [["task", "builder", "destination_kind"]],
+                legacyKeys: ["destination_kind"]
+            )
                 .flatMap(AnnouncementStructuredData.DestinationKind.init(rawValue:)),
-            urgency: rawValue(for: ["urgency"])
+            urgency: taskStringValue(
+                paths: [["task", "builder", "urgency"]],
+                legacyKeys: ["urgency"]
+            )
                 .flatMap(AnnouncementStructuredData.Urgency.init(rawValue:)),
-            requiresVehicle: boolValue(for: ["requires_vehicle"]),
-            needsTrunk: boolValue(for: ["needs_trunk"]),
-            requiresCarefulHandling: boolValue(for: ["requires_careful_handling"]),
-            needsLoader: boolValue(for: ["needs_loader", "need_loader"]),
-            requiresLiftToFloor: boolValue(for: ["requires_lift_to_floor"]),
-            hasElevator: boolValue(for: ["has_elevator"]),
-            waitOnSite: boolValue(for: ["wait_on_site"]),
-            contactless: boolValue(for: ["contactless"]),
-            requiresReceipt: boolValue(for: ["requires_receipt"]),
-            requiresConfirmationCode: boolValue(for: ["requires_confirmation_code"]),
-            callBeforeArrival: boolValue(for: ["call_before_arrival"]),
-            photoReportRequired: boolValue(for: ["photo_report_required"]),
-            weightCategory: rawValue(for: ["weight_category"])
+            requiresVehicle: taskBoolValue(
+                paths: [["task", "attributes", "requires_vehicle"]],
+                legacyKeys: ["requires_vehicle"]
+            ) ?? boolValue(for: ["requires_vehicle"]),
+            needsTrunk: taskBoolValue(
+                paths: [["task", "attributes", "needs_trunk"]],
+                legacyKeys: ["needs_trunk"]
+            ) ?? boolValue(for: ["needs_trunk"]),
+            requiresCarefulHandling: taskBoolValue(
+                paths: [["task", "attributes", "requires_careful_handling"]],
+                legacyKeys: ["requires_careful_handling"]
+            ) ?? boolValue(for: ["requires_careful_handling"]),
+            needsLoader: taskBoolValue(
+                paths: [["task", "attributes", "needs_loader"]],
+                legacyKeys: ["needs_loader", "need_loader"]
+            ) ?? boolValue(for: ["needs_loader", "need_loader"]),
+            requiresLiftToFloor: taskBoolValue(
+                paths: [["task", "attributes", "requires_lift_to_floor"]],
+                legacyKeys: ["requires_lift_to_floor"]
+            ) ?? boolValue(for: ["requires_lift_to_floor"]),
+            hasElevator: taskBoolValue(
+                paths: [["task", "attributes", "has_elevator"]],
+                legacyKeys: ["has_elevator"]
+            ) ?? boolValue(for: ["has_elevator"]),
+            waitOnSite: taskBoolValue(
+                paths: [["task", "attributes", "wait_on_site"]],
+                legacyKeys: ["wait_on_site"]
+            ) ?? boolValue(for: ["wait_on_site"]),
+            contactless: taskBoolValue(
+                paths: [["task", "attributes", "contactless"]],
+                legacyKeys: ["contactless"]
+            ) ?? boolValue(for: ["contactless"]),
+            requiresReceipt: taskBoolValue(
+                paths: [["task", "attributes", "requires_receipt"]],
+                legacyKeys: ["requires_receipt"]
+            ) ?? boolValue(for: ["requires_receipt"]),
+            requiresConfirmationCode: taskBoolValue(
+                paths: [["task", "attributes", "requires_confirmation_code"]],
+                legacyKeys: ["requires_confirmation_code"]
+            ) ?? boolValue(for: ["requires_confirmation_code"]),
+            callBeforeArrival: taskBoolValue(
+                paths: [["task", "attributes", "call_before_arrival"]],
+                legacyKeys: ["call_before_arrival"]
+            ) ?? boolValue(for: ["call_before_arrival"]),
+            photoReportRequired: taskBoolValue(
+                paths: [["task", "attributes", "photo_report_required"]],
+                legacyKeys: ["photo_report_required"]
+            ) ?? boolValue(for: ["photo_report_required"]),
+            weightCategory: taskStringValue(
+                paths: [["task", "attributes", "weight_category"]],
+                legacyKeys: ["weight_category"]
+            )
                 .flatMap(AnnouncementStructuredData.WeightCategory.init(rawValue:)),
-            sizeCategory: rawValue(for: ["size_category"])
+            sizeCategory: taskStringValue(
+                paths: [["task", "attributes", "size_category"]],
+                legacyKeys: ["size_category"]
+            )
                 .flatMap(AnnouncementStructuredData.SizeCategory.init(rawValue:)),
-            estimatedTaskMinutes: intValue(forAny: ["estimated_task_minutes"]),
-            waitingMinutes: intValue(forAny: ["waiting_minutes"]),
+            estimatedTaskMinutes: taskIntValue(
+                paths: [["task", "attributes", "estimated_task_minutes"]],
+                legacyKeys: ["estimated_task_minutes"]
+            ) ?? intValue(forAny: ["estimated_task_minutes"]),
+            waitingMinutes: taskIntValue(
+                paths: [["task", "attributes", "waiting_minutes"]],
+                legacyKeys: ["waiting_minutes"]
+            ) ?? intValue(forAny: ["waiting_minutes"]),
             budgetMin: budgetMinValue,
             budgetMax: budgetMaxValue ?? budgetValue,
             sourceAddress: primarySourceAddress,
             destinationAddress: primaryDestinationAddress,
-            taskBrief: rawValue(for: ["task_brief"]),
-            notes: rawValue(for: ["notes"])
+            taskBrief: taskStringValue(
+                paths: [["task", "builder", "task_brief"]],
+                legacyKeys: ["task_brief"]
+            ),
+            notes: taskStringValue(
+                paths: [["task", "builder", "notes"]],
+                legacyKeys: ["notes"]
+            )
         )
     }
 
     var primarySourceAddress: String? {
-        rawValue(for: ["source_address", "pickup_address", "address"])
+        taskStringValue(
+            paths: [
+                ["task", "route", "source", "address"],
+                ["task", "route", "start", "address"],
+            ],
+            legacyKeys: ["source_address", "pickup_address", "address"]
+        )
     }
 
     var primaryDestinationAddress: String? {
-        rawValue(for: ["destination_address", "dropoff_address"])
+        taskStringValue(
+            paths: [
+                ["task", "route", "destination", "address"],
+                ["task", "route", "end", "address"],
+            ],
+            legacyKeys: ["destination_address", "dropoff_address"]
+        )
     }
 
     var mapCoordinate: CLLocationCoordinate2D? {
-        pointCoordinate(for: ["point", "pickup_point", "help_point", "source_point"])
-            ?? pointCoordinate(for: ["dropoff_point", "destination_point"])
+        taskPointCoordinate(
+            paths: [
+                ["task", "route", "source", "point"],
+                ["task", "route", "start", "point"],
+            ],
+            legacyKeys: ["point", "pickup_point", "help_point", "source_point"]
+        )
+            ?? taskPointCoordinate(
+                paths: [
+                    ["task", "route", "destination", "point"],
+                    ["task", "route", "end", "point"],
+                ],
+                legacyKeys: ["dropoff_point", "destination_point"]
+            )
     }
 
     var sourceCoordinate: CLLocationCoordinate2D? {
-        pointCoordinate(for: ["pickup_point", "help_point", "point", "source_point"])
+        taskPointCoordinate(
+            paths: [
+                ["task", "route", "source", "point"],
+                ["task", "route", "start", "point"],
+            ],
+            legacyKeys: ["pickup_point", "help_point", "point", "source_point"]
+        )
     }
 
     var destinationCoordinate: CLLocationCoordinate2D? {
-        pointCoordinate(for: ["dropoff_point", "destination_point"])
+        taskPointCoordinate(
+            paths: [
+                ["task", "route", "destination", "point"],
+                ["task", "route", "end", "point"],
+            ],
+            legacyKeys: ["dropoff_point", "destination_point"]
+        )
     }
 
     var searchableText: String {
@@ -542,7 +665,10 @@ extension AnnouncementDTO {
     }
 
     private var normalizedSourceKind: AnnouncementStructuredData.SourceKind? {
-        guard let raw = rawValue(for: ["source_kind"]) else { return nil }
+        guard let raw = taskStringValue(
+            paths: [["task", "builder", "source_kind"]],
+            legacyKeys: ["source_kind"]
+        ) else { return nil }
         switch raw {
         case "store", "pharmacy", "venue":
             return .venue
@@ -578,6 +704,22 @@ extension AnnouncementDTO {
             }
         }
         return nil
+    }
+
+    private func taskPointCoordinate(
+        paths: [[String]],
+        legacyKeys: [String]
+    ) -> CLLocationCoordinate2D? {
+        for path in paths {
+            guard let object = taskValue(at: path)?.objectValue,
+                  let lat = object["lat"]?.doubleValue,
+                  let lon = object["lon"]?.doubleValue,
+                  (-90...90).contains(lat),
+                  (-180...180).contains(lon) else { continue }
+            return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        }
+
+        return pointCoordinate(for: legacyKeys)
     }
 
     private func pointCoordinate(for keys: [String]) -> CLLocationCoordinate2D? {

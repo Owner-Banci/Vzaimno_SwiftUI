@@ -1,5 +1,20 @@
 import Foundation
 
+enum OfferPricingMode: String, Codable, Equatable {
+    case quickMinPrice = "quick_min_price"
+    case counterPrice = "counter_price"
+    case agreedPrice = "agreed_price"
+}
+
+enum AnnouncementOfferStatus: String, Codable, Equatable {
+    case pending
+    case accepted
+    case rejected
+    case withdrawn
+    case expired
+    case blocked
+}
+
 struct OfferPerformer: Equatable {
     let userID: String
     let displayName: String
@@ -30,21 +45,36 @@ struct AnnouncementOffer: Identifiable, Equatable {
     let performerID: String
     let message: String?
     let proposedPrice: Int?
+    let agreedPrice: Int?
+    let pricingMode: OfferPricingMode
+    let minimumPriceAccepted: Bool
+    let canReoffer: Bool
     let status: String
     let createdAt: Date
     let performer: OfferPerformer?
     let performerStats: ProfileStats?
 
     var formattedPrice: String? {
-        guard let proposedPrice else { return nil }
-        return "\(proposedPrice.formatted(.number.grouping(.automatic))) ₽"
+        let effectivePrice = agreedPrice ?? proposedPrice
+        guard let effectivePrice else { return nil }
+        return "\(effectivePrice.formatted(.number.grouping(.automatic))) ₽"
+    }
+
+    var statusValue: AnnouncementOfferStatus? {
+        AnnouncementOfferStatus(rawValue: status)
     }
 
     var summaryText: String {
         if let message, !message.isEmpty {
             return message
         }
-        return "Быстрый отклик"
+        if minimumPriceAccepted || pricingMode == .quickMinPrice {
+            return "Быстрый отклик на минимальную цену"
+        }
+        if proposedPrice == nil && agreedPrice == nil {
+            return "Быстрый отклик"
+        }
+        return "Отклик без сообщения"
     }
 }
 
@@ -56,6 +86,9 @@ struct AcceptedOfferResult: Equatable {
 struct CreateOfferRequestDTO: Codable {
     let message: String?
     let proposed_price: Int?
+    let pricing_mode: String?
+    let agreed_price: Int?
+    let minimum_price_accepted: Bool?
 }
 
 struct OfferPerformerProfileDTO: Codable {
@@ -98,6 +131,10 @@ struct AnnouncementOfferDTO: Codable {
     let performer_id: String
     let message: String?
     let proposed_price: Int?
+    let agreed_price: Int?
+    let pricing_mode: String?
+    let minimum_price_accepted: Bool?
+    let can_reoffer: Bool?
     let status: String
     let created_at: String
     let performer_profile: OfferPerformerProfileDTO?
@@ -110,6 +147,10 @@ struct AnnouncementOfferDTO: Codable {
             performerID: performer_id,
             message: normalizedOfferText(message),
             proposedPrice: proposed_price,
+            agreedPrice: agreed_price,
+            pricingMode: OfferPricingMode(rawValue: pricing_mode ?? "") ?? .counterPrice,
+            minimumPriceAccepted: minimum_price_accepted ?? false,
+            canReoffer: can_reoffer ?? true,
             status: status,
             createdAt: ProfileDateParser.parse(created_at) ?? .now,
             performer: performer_profile?.domain,

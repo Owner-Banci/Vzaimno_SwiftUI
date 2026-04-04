@@ -3,10 +3,12 @@ import SwiftUI
 struct ChatsScreen: View {
     @StateObject private var vm: ChatsViewModel
     private let service: ChatService
+    private let profileService: ProfileService
     private let session: SessionStore
 
-    init(service: ChatService, session: SessionStore) {
+    init(service: ChatService, profileService: ProfileService, session: SessionStore) {
         self.service = service
+        self.profileService = profileService
         self.session = session
         _vm = StateObject(wrappedValue: ChatsViewModel(service: service, session: session))
     }
@@ -23,7 +25,7 @@ struct ChatsScreen: View {
                 List {
                     ForEach(vm.chats) { chat in
                         NavigationLink {
-                            ChatThreadScreen(thread: chat, service: service, session: session)
+                            ChatThreadScreen(thread: chat, service: service, profileService: profileService, session: session)
                         } label: {
                             ChatThreadRow(chat: chat)
                         }
@@ -36,7 +38,13 @@ struct ChatsScreen: View {
             }
         }
         .navigationTitle("Сообщения")
-        .task { await vm.reload() }
+        .task {
+            vm.onAppear()
+            await vm.reload()
+        }
+        .onDisappear {
+            vm.onDisappear()
+        }
         .refreshable { await vm.reload(showLoader: false) }
         .alert(
             "Ошибка",

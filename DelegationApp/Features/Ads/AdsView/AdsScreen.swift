@@ -17,6 +17,9 @@ struct StatusBadge: View {
         case "pending_review": return "На проверке"
         case "needs_fix": return "Нужно исправить"
         case "rejected": return "Отказано"
+        case "assigned": return "Назначено"
+        case "in_progress": return "В работе"
+        case "completed": return "Завершено"
         case "archived": return "Архив"
         default: return "Активно"
         }
@@ -27,6 +30,9 @@ struct StatusBadge: View {
         case "pending_review": return Color.gray.opacity(0.75)
         case "needs_fix": return Color.yellow.opacity(0.8)
         case "rejected": return Color.red.opacity(0.85)
+        case "assigned": return Theme.ColorToken.peach
+        case "in_progress": return Theme.ColorToken.turquoise
+        case "completed": return Color.green.opacity(0.82)
         case "archived": return Color.black.opacity(0.65)
         default: return Theme.ColorToken.turquoise
         }

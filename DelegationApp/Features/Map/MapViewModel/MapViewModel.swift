@@ -177,7 +177,7 @@ final class MapViewModel: ObservableObject {
     func reloadPins() async {
         do {
             let list = try await announcementService.publicAnnouncements()
-            announcements = list
+            announcements = list.filter(\.canAppearOnMap)
             refreshSelection()
             rebuildPresentations()
         } catch {

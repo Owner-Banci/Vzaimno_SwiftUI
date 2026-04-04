@@ -592,6 +592,7 @@ final class CreateAdDraft: ObservableObject {
 
     private var pickupAddressSnapshot: String?
     private var dropoffAddressSnapshot: String?
+    private var lastAutoFilledDescription: String = ""
 
     var manualTitleOverride: String {
         get { title }
@@ -608,29 +609,24 @@ final class CreateAdDraft: ObservableObject {
         AdValidators.normalizedAddress(dropoffAddress)
     }
 
-    var hasManualTitleOverride: Bool {
-        !AdValidators.trimmed(manualTitleOverride).isEmpty
-    }
-
     var hasAttachedMedia: Bool {
         !mediaJPEGData.isEmpty
     }
 
     var userEnteredFreeTextValues: [String] {
         [
-            AdValidators.trimmed(manualTitleOverride),
-            AdValidators.trimmed(taskBrief),
-            AdValidators.trimmed(notes),
+            AdValidators.trimmed(resolvedTitle),
+            AdValidators.trimmed(resolvedDescription),
         ]
         .filter { !$0.isEmpty }
     }
 
     var hasUserEnteredFreeText: Bool {
-        !userEnteredFreeTextValues.isEmpty
+        !AdValidators.trimmed(resolvedDescription).isEmpty
     }
 
     var usesOnlyStructuredTemplateData: Bool {
-        !hasUserEnteredFreeText
+        false
     }
 
     var moderationTextPayload: String {
@@ -1017,67 +1013,23 @@ final class CreateAdDraft: ObservableObject {
     }
 
     var generatedTitle: String {
-        let source = shortAddress(sourceAddress)
-        let destination = shortAddress(destinationAddress)
-
         switch actionType {
         case .some(.pickup):
-            let item = itemType?.accusativeTitle ?? "вещь"
-            var parts = ["Забрать \(item)"]
-            if let from = pickupSourcePhrase(shortAddress: source) {
-                parts.append(from)
-            }
-            if let to = deliveryDestinationPhrase(shortAddress: destination) {
-                parts.append("и привезти \(to)")
-            }
-            return parts.joined(separator: " ")
+            return "Забрать \(itemType?.accusativeTitle ?? "заказ")"
 
         case .some(.buy):
-            let item = purchaseType?.accusativeTitle ?? "покупку"
-            var parts = ["Купить \(item)"]
-            if let from = buySourcePhrase(shortAddress: source) {
-                parts.append(from)
-            }
-            if let to = deliveryDestinationPhrase(shortAddress: destination) {
-                parts.append("и привезти \(to)")
-            }
-            return parts.joined(separator: " ")
+            return "Купить \(purchaseType?.accusativeTitle ?? "товары")"
 
         case .some(.carry):
-            let item = itemType?.accusativeTitle ?? "вещь"
-            var parts = ["Помочь перенести \(item)"]
-            if let from = carrySourcePhrase(shortAddress: source) {
-                parts.append(from)
-            }
-            if let to = carryDestinationPhrase(shortAddress: destination) {
-                parts.append(to)
-            }
-            return parts.joined(separator: " ")
+            return "Перенести \(itemType?.accusativeTitle ?? "вещь")"
 
         case .some(.ride):
-            if let to = rideDestinationPhrase(shortAddress: destination) {
-                return "Подвезти \(to)"
-            }
-            if let from = rideSourcePhrase(shortAddress: source) {
-                return "Подвезти \(from)"
-            }
             return "Подвезти пассажира"
 
         case .some(.proHelp):
-            let brief = AdValidators.trimmed(taskBrief)
-            if !brief.isEmpty {
-                return "Быстрая помощь: \(brief)"
-            }
-            if let helpType {
-                return "Быстрая помощь: \(helpType.shortTitle)"
-            }
-            return "Быстрая помощь"
+            return "Помощь от профи"
 
         case .some(.other):
-            let brief = AdValidators.trimmed(taskBrief)
-            if !brief.isEmpty {
-                return "Нестандартная задача: \(brief)"
-            }
             return "Нестандартная задача"
 
         case .none:
@@ -1086,8 +1038,42 @@ final class CreateAdDraft: ObservableObject {
     }
 
     var resolvedTitle: String {
-        let custom = AdValidators.trimmed(manualTitleOverride)
-        return custom.isEmpty ? generatedTitle : custom
+        generatedTitle
+    }
+
+    var assembledDescription: String {
+        guard actionType != nil else { return "" }
+        let source = shortAddress(sourceAddress)
+        let destination = shortAddress(destinationAddress)
+        var lines: [String] = [descriptionLeadLine(source: source, destination: destination)]
+
+        if let route = detailedRouteLine(source: source, destination: destination) {
+            lines.append(route)
+        }
+
+        if let timing = detailedTimingLine {
+            lines.append(timing)
+        }
+
+        if let effort = detailedEffortLine {
+            lines.append(effort)
+        }
+
+        if let conditions = detailedConditionsLine {
+            lines.append(conditions)
+        }
+
+        if let dimensions = detailedDimensionsLine {
+            lines.append(dimensions)
+        }
+
+        return Self.uniqueStrings(lines.map(AdValidators.trimmed).filter { !$0.isEmpty })
+            .joined(separator: "\n")
+    }
+
+    var resolvedDescription: String {
+        let custom = AdValidators.trimmed(notes)
+        return custom.isEmpty ? assembledDescription : custom
     }
 
     var routeSummary: String {
@@ -1445,13 +1431,16 @@ final class CreateAdDraft: ObservableObject {
             issues.append(error)
         }
 
-        let titleOverride = AdValidators.trimmed(manualTitleOverride)
-        if !titleOverride.isEmpty, let error = AdValidators.validateTitle(titleOverride) {
+        if let error = AdValidators.validateTitle(resolvedTitle) {
             issues.append(error)
         }
 
         if generatedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             issues.append("Не удалось собрать заголовок объявления")
+        }
+
+        if resolvedDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            issues.append("Не удалось собрать описание объявления")
         }
 
         if let phoneError = AdValidators.validateOptionalPhone(contactPhone).error {
@@ -1515,7 +1504,8 @@ final class CreateAdDraft: ObservableObject {
         contactPhone = phone.normalized ?? ""
         contactName = AdValidators.trimmed(contactName)
         taskBrief = AdValidators.trimmed(taskBrief)
-        notes = AdValidators.trimmed(notes)
+        syncAutoGeneratedDescriptionIfNeeded()
+        notes = AdValidators.trimmed(resolvedDescription)
         return nil
     }
 
@@ -1541,6 +1531,7 @@ final class CreateAdDraft: ObservableObject {
     // MARK: - Mapping to request
     func toCreateRequest(status: String = "pending_review") -> CreateAnnouncementRequest {
         syncLegacyFields()
+        syncAutoGeneratedDescriptionIfNeeded()
 
         let iso = ISO8601DateFormatter()
         var data: [String: JSONValue] = [:]
@@ -1550,8 +1541,14 @@ final class CreateAdDraft: ObservableObject {
         let source = sourceAddress
         let destination = destinationAddress
         let taskBriefTrimmed = AdValidators.trimmed(taskBrief)
-        let notesTrimmed = AdValidators.trimmed(notes)
+        let notesTrimmed = AdValidators.trimmed(resolvedDescription)
         let itemRaw = resolvedItemTypeRawValue
+        let compatibleBudget = budgetCompatibilityValue()
+        let budgetMinJSON = jsonOptionalBudgetInt(budgetMin)
+        let budgetMaxJSON = jsonOptionalBudgetInt(budgetMax)
+        let quickOfferPrice = max(0, compatibleBudget ?? recommended.min)
+        let normalizedLifecycleStatus = status == "active" ? "open" : status
+        let travelMode = (requiresVehicle || actionType == .ride || mainGroup == .delivery) ? "driving" : "walking"
 
         data["category"] = .string(mainGroup.rawValue)
         data["main_group"] = .string(mainGroup.rawValue)
@@ -1567,9 +1564,10 @@ final class CreateAdDraft: ObservableObject {
 
         data["recommended_price_min"] = .int(recommended.min)
         data["recommended_price_max"] = .int(recommended.max)
-        data["budget_min"] = jsonOptionalBudgetInt(budgetMin)
-        data["budget_max"] = jsonOptionalBudgetInt(budgetMax)
-        if let compatibleBudget = budgetCompatibilityValue() {
+        data["budget_min"] = budgetMinJSON
+        data["budget_max"] = budgetMaxJSON
+        data["quick_offer_price"] = .int(quickOfferPrice)
+        if let compatibleBudget {
             data["budget"] = .int(compatibleBudget)
         } else {
             data["budget"] = .null
@@ -1607,6 +1605,7 @@ final class CreateAdDraft: ObservableObject {
         data["end_at"] = hasEndTime ? .string(iso.string(from: endDate)) : .null
         data["task_brief"] = taskBriefTrimmed.isEmpty ? .null : .string(taskBriefTrimmed)
         data["notes"] = notesTrimmed.isEmpty ? .null : .string(notesTrimmed)
+        data["generated_description"] = .string(assembledDescription)
         data["generated_title"] = .string(generatedTitle)
         data["generated_tags"] = .array(generatedTags.map { .string($0) })
         data["ai_hints"] = .array(Self.uniqueStrings(generatedHints + aiHints).map { .string($0) })
@@ -1649,6 +1648,101 @@ final class CreateAdDraft: ObservableObject {
                 data["destination_point"] = Self.jsonPoint(dropoffPoint)
             }
         }
+
+        let sourcePointJSON: JSONValue = pickupPoint.map(Self.jsonPoint) ?? .null
+        let destinationPointJSON: JSONValue = dropoffPoint.map(Self.jsonPoint) ?? .null
+        let taskPayload: [String: JSONValue] = [
+            "schema_version": .int(2),
+            "lifecycle": .object([
+                "status": .string(normalizedLifecycleStatus),
+                "deleted_at": .null,
+            ]),
+            "builder": .object([
+                "main_group": .string(mainGroup.rawValue),
+                "action_type": jsonString(actionType?.rawValue),
+                "resolved_category": .string(resolvedCategory.rawValue),
+                "item_type": jsonString(itemRaw),
+                "purchase_type": jsonString(purchaseType?.rawValue),
+                "help_type": jsonString(helpType?.rawValue),
+                "source_kind": jsonString(sourceKind?.rawValue),
+                "destination_kind": jsonString(destinationKind?.rawValue),
+                "urgency": .string(urgency.rawValue),
+                "task_brief": taskBriefTrimmed.isEmpty ? .null : .string(taskBriefTrimmed),
+                "notes": notesTrimmed.isEmpty ? .null : .string(notesTrimmed),
+            ]),
+            "attributes": .object([
+                "requires_vehicle": .bool(requiresVehicle || actionType == .ride),
+                "needs_trunk": .bool(needsTrunk),
+                "requires_careful_handling": .bool(requiresCarefulHandling),
+                "needs_loader": .bool(needLoader),
+                "requires_lift_to_floor": .bool(requiresLiftToFloor),
+                "has_elevator": .bool(hasElevator),
+                "wait_on_site": .bool(waitOnSite),
+                "contactless": .bool(contactless),
+                "requires_receipt": .bool(requiresReceipt),
+                "requires_confirmation_code": .bool(requiresConfirmationCode),
+                "call_before_arrival": .bool(callBeforeArrival),
+                "photo_report_required": .bool(photoReportRequired),
+                "weight_category": jsonString(weightCategory?.rawValue),
+                "size_category": jsonString(sizeCategory?.rawValue),
+                "cargo": .object([
+                    "length_cm": jsonOptionalInt(cargoLength),
+                    "width_cm": jsonOptionalInt(cargoWidth),
+                    "height_cm": jsonOptionalInt(cargoHeight),
+                ]),
+                "estimated_task_minutes": jsonOptionalInt(estimatedTaskMinutes),
+                "waiting_minutes": waitOnSite ? jsonOptionalInt(waitingMinutes) : .null,
+                "floor": jsonOptionalInt(floor),
+            ]),
+            "budget": .object([
+                "currency": .string("RUB"),
+                "recommended_min": .int(recommended.min),
+                "recommended_max": .int(recommended.max),
+                "min": budgetMinJSON,
+                "max": budgetMaxJSON,
+                "amount": compatibleBudget.map(JSONValue.int) ?? .null,
+            ]),
+            "route": .object([
+                "travel_mode": .string(travelMode),
+                "start_at": .string(iso.string(from: startDate)),
+                "has_end_time": .bool(hasEndTime),
+                "end_at": hasEndTime ? .string(iso.string(from: endDate)) : .null,
+                "source": .object([
+                    "address": source.isEmpty ? .null : .string(source),
+                    "kind": jsonString(sourceKind?.rawValue),
+                    "point": sourcePointJSON,
+                ]),
+                "destination": .object([
+                    "address": destination.isEmpty ? .null : .string(destination),
+                    "kind": jsonString(destinationKind?.rawValue),
+                    "point": destinationPointJSON,
+                ]),
+            ]),
+            "contacts": .object([
+                "name": contactNameTrimmed.isEmpty ? .null : .string(contactNameTrimmed),
+                "phone": data["contact_phone"] ?? .null,
+                "method": .string(contactMethod.rawValue),
+                "audience": .string(audience.rawValue),
+            ]),
+            "search": .object([
+                "generated_title": .string(generatedTitle),
+                "generated_description": .string(assembledDescription),
+                "generated_tags": .array(generatedTags.map { .string($0) }),
+                "hints": .array(Self.uniqueStrings(generatedHints + aiHints).map { .string($0) }),
+            ]),
+            "offer_policy": .object([
+                "quick_offer_enabled": .bool(true),
+                "quick_offer_price": .int(quickOfferPrice),
+                "counter_price_allowed": .bool(true),
+                "reoffer_policy": .string("blocked_after_reject"),
+            ]),
+            "execution": .object([
+                "status": .string("open"),
+                "assignment_id": .null,
+                "performer_user_id": .null,
+            ]),
+        ]
+        data["task"] = .object(taskPayload)
 
         return CreateAnnouncementRequest(
             category: mainGroup.rawValue,
@@ -1887,6 +1981,7 @@ final class CreateAdDraft: ObservableObject {
 
     private func syncLegacyFields() {
         category = mainGroup.legacyCategory
+        title = generatedTitle
 
         let normalizedSource = sourceAddress
         let normalizedDestination = destinationAddress
@@ -1895,6 +1990,16 @@ final class CreateAdDraft: ObservableObject {
         helpDestinationAddress = normalizedDestination
         helpPoint = pickupPoint
         helpDestinationPoint = dropoffPoint
+    }
+
+    func syncAutoGeneratedDescriptionIfNeeded(force: Bool = false) {
+        let candidate = assembledDescription
+        let current = AdValidators.trimmed(notes)
+        let previous = AdValidators.trimmed(lastAutoFilledDescription)
+
+        guard force || current.isEmpty || current == previous else { return }
+        notes = candidate
+        lastAutoFilledDescription = candidate
     }
 
     private func baseRecommendedPrice() -> Int {
@@ -1951,6 +2056,148 @@ final class CreateAdDraft: ObservableObject {
         default:
             return itemType?.rawValue
         }
+    }
+
+    private func descriptionLeadLine(source: String?, destination: String?) -> String {
+        switch actionType {
+        case .some(.pickup):
+            let object = itemType?.accusativeTitle ?? "заказ"
+            return "Нужно забрать \(object)."
+
+        case .some(.buy):
+            let object = purchaseType?.accusativeTitle ?? "товары"
+            return "Нужно купить \(object)."
+
+        case .some(.carry):
+            let object = itemType?.accusativeTitle ?? "вещь"
+            return "Нужно перенести \(object)."
+
+        case .some(.ride):
+            return needsTrunk
+                ? "Нужно подвезти пассажира с багажом."
+                : "Нужно подвезти пассажира без багажа."
+
+        case .some(.proHelp):
+            let brief = AdValidators.trimmed(taskBrief)
+            if !brief.isEmpty {
+                return "Нужна помощь от профи: \(brief)."
+            }
+            if let helpType {
+                return "Нужна помощь от профи по сценарию \"\(helpType.title)\"."
+            }
+            return "Нужна помощь от профи."
+
+        case .some(.other):
+            let brief = AdValidators.trimmed(taskBrief)
+            if !brief.isEmpty {
+                return "Нестандартная задача: \(brief)."
+            }
+            return "Нестандартная задача."
+
+        case .none:
+            return "Опишите задачу через готовые параметры."
+        }
+    }
+
+    private func detailedRouteLine(source: String?, destination: String?) -> String? {
+        var fragments: [String] = []
+
+        if let from = source {
+            switch actionType {
+            case .some(.pickup):
+                if let sourcePhrase = pickupSourcePhrase(shortAddress: from) {
+                    fragments.append("Забор: \(sourcePhrase).")
+                }
+            case .some(.buy):
+                if let sourcePhrase = buySourcePhrase(shortAddress: from) {
+                    fragments.append("Покупка: \(sourcePhrase).")
+                }
+            case .some(.carry):
+                if let sourcePhrase = carrySourcePhrase(shortAddress: from) {
+                    fragments.append("Старт: \(sourcePhrase).")
+                }
+            case .some(.ride):
+                fragments.append("Подача: \(from).")
+            case .some(.proHelp), .some(.other):
+                fragments.append("Адрес: \(from).")
+            case .none:
+                break
+            }
+        }
+
+        if let to = destination {
+            switch actionType {
+            case .some(.pickup), .some(.buy):
+                if let destinationPhrase = deliveryDestinationPhrase(shortAddress: to) {
+                    fragments.append("Куда доставить: \(destinationPhrase).")
+                }
+            case .some(.carry):
+                fragments.append("Куда перенести: \(to).")
+            case .some(.ride):
+                fragments.append("Маршрут до: \(to).")
+            case .some(.proHelp), .some(.other), .none:
+                break
+            }
+        }
+
+        return fragments.isEmpty ? nil : fragments.joined(separator: " ")
+    }
+
+    private var detailedTimingLine: String? {
+        var fragments: [String] = ["Когда: \(timeSummary)."]
+
+        if let minutes = Self.validateOptionalMinutes(estimatedTaskMinutes, fieldName: "") == nil
+            ? Int(AdValidators.trimmed(estimatedTaskMinutes))
+            : nil,
+           minutes > 0 {
+            fragments.append("Оценка по времени: около \(minutes) мин.")
+        }
+
+        if waitOnSite,
+           let waiting = Int(AdValidators.trimmed(waitingMinutes)),
+           waiting > 0 {
+            fragments.append("Можно подождать на месте до \(waiting) мин.")
+        }
+
+        return fragments.joined(separator: " ")
+    }
+
+    private var detailedEffortLine: String? {
+        var fragments: [String] = []
+
+        if let weightCategory, showsWeightAndSizeSection {
+            fragments.append("Вес: \(weightCategory.title).")
+        }
+
+        if let sizeCategory, showsWeightAndSizeSection {
+            fragments.append("Размер: \(sizeCategory.title).")
+        }
+
+        if requiresLiftToFloor, let floorValue = Int(AdValidators.trimmed(floor)) {
+            let elevator = hasElevator ? "есть лифт" : "без лифта"
+            fragments.append("Подъём на \(floorValue) этаж, \(elevator).")
+        }
+
+        if needLoader {
+            fragments.append("Нужен грузчик.")
+        }
+
+        return fragments.isEmpty ? nil : fragments.joined(separator: " ")
+    }
+
+    private var detailedConditionsLine: String? {
+        let values = selectedConditionTitles.filter { !$0.isEmpty }
+        guard !values.isEmpty else { return nil }
+        return "Дополнительно: \(values.joined(separator: ", "))."
+    }
+
+    private var detailedDimensionsLine: String? {
+        var dimensions: [String] = []
+        if let length = Int(AdValidators.trimmed(cargoLength)), length > 0 { dimensions.append("длина \(length) см") }
+        if let width = Int(AdValidators.trimmed(cargoWidth)), width > 0 { dimensions.append("ширина \(width) см") }
+        if let height = Int(AdValidators.trimmed(cargoHeight)), height > 0 { dimensions.append("высота \(height) см") }
+        guard !dimensions.isEmpty else { return nil }
+        return "Габариты: \(dimensions.joined(separator: ", "))."
     }
 
     private func pickupSourcePhrase(shortAddress: String?) -> String? {

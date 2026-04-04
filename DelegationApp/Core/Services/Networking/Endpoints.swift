@@ -14,7 +14,9 @@ enum APIEndpoint {
     case me
     case usersMe
     case updateMyProfile
-    case myReviews(limit: Int, offset: Int)
+    case myReviews(limit: Int, offset: Int, role: String?)
+    case announcementReviewContext(announcementID: String)
+    case submitAnnouncementReview(announcementID: String)
     case registerDevice
     case deleteCurrentDevice
 
@@ -22,6 +24,7 @@ enum APIEndpoint {
     case createAnnouncement
     case myAnnouncements
     case publicAnnouncements
+    case announcement(id: String)
 
     case uploadAnnouncementMedia(id: String)
     case appealAnnouncement(id: String)
@@ -29,6 +32,7 @@ enum APIEndpoint {
     case announcementOffers(announcementID: String)
     case acceptOffer(announcementID: String, offerID: String)
     case rejectOffer(announcementID: String, offerID: String)
+    case updateExecutionStage(announcementID: String)
     case announcementRoute(announcementID: String)
     case announcementRouteContext(announcementID: String)
     case myCurrentRoute
@@ -50,12 +54,15 @@ enum APIEndpoint {
         case .usersMe: return "users/me"
         case .updateMyProfile: return "users/me/profile"
         case .myReviews: return "users/me/reviews"
+        case .announcementReviewContext(let announcementID): return "announcements/\(announcementID)/review-context"
+        case .submitAnnouncementReview(let announcementID): return "announcements/\(announcementID)/review"
         case .registerDevice: return "devices/register"
         case .deleteCurrentDevice: return "devices/me"
 
         case .createAnnouncement: return "announcements"
         case .myAnnouncements: return "announcements/me"
         case .publicAnnouncements: return "announcements/public"
+        case .announcement(let id): return "announcements/\(id)"
 
         case .uploadAnnouncementMedia(let id): return "announcements/\(id)/media"
         case .appealAnnouncement(let id): return "announcements/\(id)/appeal"
@@ -63,6 +70,7 @@ enum APIEndpoint {
         case .announcementOffers(let announcementID): return "announcements/\(announcementID)/offers"
         case .acceptOffer(let announcementID, let offerID): return "announcements/\(announcementID)/offers/\(offerID)/accept"
         case .rejectOffer(let announcementID, let offerID): return "announcements/\(announcementID)/offers/\(offerID)/reject"
+        case .updateExecutionStage(let announcementID): return "announcements/\(announcementID)/execution-stage"
         case .announcementRoute(let announcementID): return "announcements/\(announcementID)/route"
         case .announcementRouteContext(let announcementID): return "announcements/\(announcementID)/route/context"
         case .myCurrentRoute: return "routes/me/current"
@@ -79,9 +87,9 @@ enum APIEndpoint {
 
     var method: HTTPMethod {
         switch self {
-        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .sendChatMessage, .routeBuild:
+        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .updateExecutionStage, .sendChatMessage, .routeBuild, .submitAnnouncementReview:
             return .POST
-        case .me, .usersMe, .myReviews, .myAnnouncements, .publicAnnouncements, .announcementOffers, .announcementRoute, .announcementRouteContext, .myCurrentRoute, .myCurrentRouteContext, .chats, .chatMessages:
+        case .me, .usersMe, .myReviews, .announcementReviewContext, .myAnnouncements, .publicAnnouncements, .announcement, .announcementOffers, .announcementRoute, .announcementRouteContext, .myCurrentRoute, .myCurrentRouteContext, .chats, .chatMessages:
             return .GET
         case .uploadAnnouncementMedia, .appealAnnouncement:
             return .POST
@@ -94,11 +102,15 @@ enum APIEndpoint {
 
     var queryItems: [URLQueryItem] {
         switch self {
-        case .myReviews(let limit, let offset):
-            return [
+        case .myReviews(let limit, let offset, let role):
+            var items = [
                 URLQueryItem(name: "limit", value: String(limit)),
                 URLQueryItem(name: "offset", value: String(offset))
             ]
+            if let role, !role.isEmpty {
+                items.append(URLQueryItem(name: "role", value: role))
+            }
+            return items
         case .chatMessages(_, let limit, let before):
             var items = [URLQueryItem(name: "limit", value: String(limit))]
             if let before, !before.isEmpty {

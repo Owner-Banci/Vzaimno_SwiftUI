@@ -4,10 +4,15 @@ struct DeleteOKResponse: Decodable {
     let ok: Bool
 }
 
+struct ExecutionStageUpdateRequestDTO: Codable {
+    let stage: String
+}
+
 protocol AnnouncementService {
     func createAnnouncement(token: String, request: CreateAnnouncementRequest) async throws -> AnnouncementDTO
     func myAnnouncements(token: String) async throws -> [AnnouncementDTO]
     func publicAnnouncements() async throws -> [AnnouncementDTO]
+    func fetchAnnouncement(token: String, announcementId: String) async throws -> AnnouncementDTO
 
     func uploadAnnouncementMedia(token: String, announcementId: String, images: [Data]) async throws -> AnnouncementDTO
 
@@ -21,11 +26,15 @@ protocol AnnouncementService {
         token: String,
         announcementId: String,
         message: String?,
-        proposedPrice: Int?
+        proposedPrice: Int?,
+        pricingMode: OfferPricingMode,
+        agreedPrice: Int?,
+        minimumPriceAccepted: Bool
     ) async throws -> AnnouncementOffer
     func fetchOffers(token: String, announcementId: String) async throws -> [AnnouncementOffer]
     func acceptOffer(token: String, announcementId: String, offerId: String) async throws -> AcceptedOfferResult
     func rejectOffer(token: String, announcementId: String, offerId: String) async throws
+    func updateExecutionStage(token: String, announcementId: String, stage: String) async throws -> AnnouncementDTO
 }
 
 final class NetworkAnnouncementService: AnnouncementService {
@@ -42,6 +51,10 @@ final class NetworkAnnouncementService: AnnouncementService {
 
     func publicAnnouncements() async throws -> [AnnouncementDTO] {
         try await api.request(.publicAnnouncements)
+    }
+
+    func fetchAnnouncement(token: String, announcementId: String) async throws -> AnnouncementDTO {
+        try await api.request(.announcement(id: announcementId), token: token)
     }
 
     func uploadAnnouncementMedia(token: String, announcementId: String, images: [Data]) async throws -> AnnouncementDTO {
@@ -77,11 +90,17 @@ final class NetworkAnnouncementService: AnnouncementService {
         token: String,
         announcementId: String,
         message: String?,
-        proposedPrice: Int?
+        proposedPrice: Int?,
+        pricingMode: OfferPricingMode,
+        agreedPrice: Int?,
+        minimumPriceAccepted: Bool
     ) async throws -> AnnouncementOffer {
         let request = CreateOfferRequestDTO(
             message: normalizedAnnouncementText(message),
-            proposed_price: proposedPrice
+            proposed_price: proposedPrice,
+            pricing_mode: pricingMode.rawValue,
+            agreed_price: agreedPrice,
+            minimum_price_accepted: minimumPriceAccepted
         )
         let response: AnnouncementOfferDTO = try await api.request(
             .submitOffer(announcementID: announcementId),
@@ -111,6 +130,15 @@ final class NetworkAnnouncementService: AnnouncementService {
         let _: OperationStatusResponseDTO = try await api.request(
             .rejectOffer(announcementID: announcementId, offerID: offerId),
             body: EmptyBody(),
+            token: token
+        )
+    }
+
+    func updateExecutionStage(token: String, announcementId: String, stage: String) async throws -> AnnouncementDTO {
+        let request = ExecutionStageUpdateRequestDTO(stage: stage)
+        return try await api.request(
+            .updateExecutionStage(announcementID: announcementId),
+            body: request,
             token: token
         )
     }
@@ -158,6 +186,26 @@ final class MockAnnouncementService: AnnouncementService {
         []
     }
 
+    func fetchAnnouncement(token: String, announcementId: String) async throws -> AnnouncementDTO {
+        if let announcement = try await myAnnouncements(token: token).first(where: { $0.id == announcementId }) {
+            return announcement
+        }
+        if let announcement = try await publicAnnouncements().first(where: { $0.id == announcementId }) {
+            return announcement
+        }
+
+        let now = ISO8601DateFormatter().string(from: Date())
+        return AnnouncementDTO(
+            id: announcementId,
+            user_id: "dev",
+            category: "delivery",
+            title: "Объявление",
+            status: "active",
+            data: [:],
+            created_at: now
+        )
+    }
+
     func uploadAnnouncementMedia(token: String, announcementId: String, images: [Data]) async throws -> AnnouncementDTO {
         // мок: сразу needs_fix
         var ann = try await myAnnouncements(token: token).first!
@@ -191,7 +239,10 @@ final class MockAnnouncementService: AnnouncementService {
         token: String,
         announcementId: String,
         message: String?,
-        proposedPrice: Int?
+        proposedPrice: Int?,
+        pricingMode: OfferPricingMode,
+        agreedPrice: Int?,
+        minimumPriceAccepted: Bool
     ) async throws -> AnnouncementOffer {
         AnnouncementOffer(
             id: UUID().uuidString,
@@ -199,6 +250,10 @@ final class MockAnnouncementService: AnnouncementService {
             performerID: "dev",
             message: normalizedAnnouncementText(message),
             proposedPrice: proposedPrice,
+            agreedPrice: agreedPrice,
+            pricingMode: pricingMode,
+            minimumPriceAccepted: minimumPriceAccepted,
+            canReoffer: true,
             status: "pending",
             createdAt: .now,
             performer: nil,
@@ -219,6 +274,10 @@ final class MockAnnouncementService: AnnouncementService {
                 performerID: "dev",
                 message: "Быстрый отклик",
                 proposedPrice: nil,
+                agreedPrice: 350,
+                pricingMode: .quickMinPrice,
+                minimumPriceAccepted: true,
+                canReoffer: false,
                 status: "accepted",
                 createdAt: .now,
                 performer: OfferPerformer(userID: "dev", displayName: "Исполнитель", city: "Москва", contact: nil, avatarURL: nil),
@@ -228,6 +287,32 @@ final class MockAnnouncementService: AnnouncementService {
     }
 
     func rejectOffer(token: String, announcementId: String, offerId: String) async throws { }
+
+    func updateExecutionStage(token: String, announcementId: String, stage: String) async throws -> AnnouncementDTO {
+        let now = ISO8601DateFormatter().string(from: Date())
+        return AnnouncementDTO(
+            id: announcementId,
+            user_id: "dev",
+            category: "delivery",
+            title: "Обновлённый этап",
+            status: stage == "completed" ? "completed" : "in_progress",
+            data: [
+                "task": .object([
+                    "schema_version": .int(2),
+                    "lifecycle": .object([
+                        "status": .string(stage == "completed" ? "completed" : "in_progress"),
+                        "deleted_at": .null,
+                    ]),
+                    "execution": .object([
+                        "status": .string(stage),
+                        "assignment_id": .string(UUID().uuidString),
+                        "performer_user_id": .string("dev"),
+                    ]),
+                ]),
+            ],
+            created_at: now
+        )
+    }
 }
 
 private func normalizedAnnouncementText(_ value: String?) -> String? {

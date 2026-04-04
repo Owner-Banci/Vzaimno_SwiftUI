@@ -21,26 +21,6 @@ enum AnnouncementModerationRoutingHelper {
         textModerationService: TextModerationService = .shared
     ) throws -> AnnouncementModerationRoutingPlan {
         let hasMedia = draft.hasAttachedMedia
-        let hasUserText = draft.hasUserEnteredFreeText
-
-        if !hasUserText && !hasMedia {
-            return AnnouncementModerationRoutingPlan(
-                requestStatus: "active",
-                shouldUploadMedia: false,
-                shouldRunLocalTextModeration: false,
-                moderationNote: nil
-            )
-        }
-
-        if !hasUserText && hasMedia {
-            return AnnouncementModerationRoutingPlan(
-                requestStatus: "pending_review",
-                shouldUploadMedia: true,
-                shouldRunLocalTextModeration: false,
-                moderationNote: nil
-            )
-        }
-
         let verdict = textModerationService.check(text: draft.moderationTextPayload)
         switch verdict {
         case .reject(let reason):

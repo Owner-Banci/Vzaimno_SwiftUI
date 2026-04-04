@@ -40,6 +40,7 @@ struct ChatThreadPreview: Identifiable, Equatable, Hashable {
     static func acceptedOfferThread(
         threadID: String,
         performer: OfferPerformer?,
+        announcementID: String,
         announcementTitle: String
     ) -> ChatThreadPreview {
         ChatThreadPreview(
@@ -51,7 +52,7 @@ struct ChatThreadPreview: Identifiable, Equatable, Hashable {
             lastMessageText: "Чат открыт",
             lastMessageAt: nil,
             unreadCount: 0,
-            announcementID: nil,
+            announcementID: announcementID,
             announcementTitle: announcementTitle
         )
     }
@@ -63,6 +64,10 @@ struct ChatMessage: Identifiable, Equatable, Hashable {
     let senderID: String
     let text: String
     let createdAt: Date
+
+    var isSystem: Bool {
+        senderID == "system"
+    }
 }
 
 struct ChatThreadPreviewDTO: Codable {

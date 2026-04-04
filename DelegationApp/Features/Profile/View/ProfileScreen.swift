@@ -9,6 +9,7 @@ struct ProfileScreen: View {
     @State private var isPresentingEditProfile: Bool = false
     @State private var isPresentingAllReviews: Bool = false
     @State private var isShowingUserID: Bool = false
+    @State private var reviewsInitialRole: ReviewRole = .performer
 
     init(service: ProfileService, session: SessionStore) {
         self.service = service
@@ -50,7 +51,7 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $isPresentingAllReviews) {
             NavigationStack {
-                ProfileReviewsListScreen(service: service, session: session)
+                ProfileReviewsListScreen(service: service, session: session, initialRole: reviewsInitialRole)
             }
         }
     }
@@ -92,6 +93,7 @@ struct ProfileScreen: View {
                 }
 
                 Button("Посмотреть все отзывы") {
+                    reviewsInitialRole = .performer
                     isPresentingAllReviews = true
                 }
                 .font(.system(size: 15, weight: .semibold))
@@ -107,35 +109,36 @@ struct ProfileScreen: View {
 
     private func header(_ profile: UserProfile) -> some View {
         ZStack(alignment: .topTrailing) {
-            Button {
-                isPresentingEditProfile = true
-            } label: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .center, spacing: 14) {
-                        Circle()
-                            .fill(Theme.ColorToken.milk)
-                            .frame(width: 56, height: 56)
-                            .overlay(
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 26))
-                                    .foregroundStyle(Theme.ColorToken.turquoise)
-                            )
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 14) {
+                    Circle()
+                        .fill(Theme.ColorToken.milk)
+                        .frame(width: 56, height: 56)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 26))
+                                .foregroundStyle(Theme.ColorToken.turquoise)
+                        )
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(profile.resolvedDisplayName)
-                                .font(.system(size: 20, weight: .semibold))
-                                .multilineTextAlignment(.leading)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(profile.resolvedDisplayName)
+                            .font(.system(size: 20, weight: .semibold))
+                            .multilineTextAlignment(.leading)
 
-                            Text(profile.contactValue)
-                                .foregroundStyle(.white.opacity(0.88))
-                                .font(.system(size: 14))
-                                .multilineTextAlignment(.leading)
-                        }
-
-                        Spacer(minLength: 0)
+                        Text(profile.contactValue)
+                            .foregroundStyle(.white.opacity(0.88))
+                            .font(.system(size: 14))
+                            .multilineTextAlignment(.leading)
                     }
 
-                    HStack(spacing: 28) {
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: 28) {
+                    Button {
+                        reviewsInitialRole = .performer
+                        isPresentingAllReviews = true
+                    } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 6) {
                                 Image(systemName: "star.fill")
@@ -147,44 +150,60 @@ struct ProfileScreen: View {
                                 .foregroundStyle(.white.opacity(0.88))
                                 .font(.system(size: 12))
                         }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(profile.stats.completedCount)")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("Выполнено")
-                                .foregroundStyle(.white.opacity(0.88))
-                                .font(.system(size: 12))
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(profile.stats.cancelledCount)")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("Отменено")
-                                .foregroundStyle(.white.opacity(0.88))
-                                .font(.system(size: 12))
-                        }
-
-                        Spacer(minLength: 0)
                     }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-            }
-            .buttonStyle(.plain)
+                    .buttonStyle(.plain)
 
-            Button {
-                isShowingUserID = true
-            } label: {
-                Text("ID")
-                    .font(.system(size: 13, weight: .bold))
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Theme.ColorToken.peach.opacity(0.3))
-                    )
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(profile.stats.completedCount)")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Выполнено")
+                            .foregroundStyle(.white.opacity(0.88))
+                            .font(.system(size: 12))
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(profile.stats.cancelledCount)")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Отменено")
+                            .foregroundStyle(.white.opacity(0.88))
+                            .font(.system(size: 12))
+                    }
+
+                    Spacer(minLength: 0)
+                }
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+
+            HStack(spacing: 8) {
+                Button {
+                    isPresentingEditProfile = true
+                } label: {
+                    Text("Изм.")
+                        .font(.system(size: 13, weight: .bold))
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Theme.ColorToken.peach.opacity(0.3))
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    isShowingUserID = true
+                } label: {
+                    Text("ID")
+                        .font(.system(size: 13, weight: .bold))
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Theme.ColorToken.peach.opacity(0.3))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
             .padding(16)
         }
         .background(

@@ -101,7 +101,7 @@ private struct MainTabView: View {
 
         case .chats:
             NavigationStack {
-                ChatsScreen(service: container.chatService, session: session)
+                ChatsScreen(service: container.chatService, profileService: container.profileService, session: session)
             }
 
         case .profile:

@@ -11,13 +11,16 @@ final class ProfileReviewsListViewModel: ObservableObject {
 
     @Published private(set) var state: ViewState = .idle
     @Published private(set) var reviews: [UserProfileReview] = []
+    @Published private(set) var summary: ReviewSummary = .empty
+    @Published var selectedRole: ReviewRole
 
     private let service: ProfileService
     private let session: SessionStore
 
-    init(service: ProfileService, session: SessionStore) {
+    init(service: ProfileService, session: SessionStore, initialRole: ReviewRole = .performer) {
         self.service = service
         self.session = session
+        self.selectedRole = initialRole
     }
 
     func loadIfNeeded() async {
@@ -26,6 +29,11 @@ final class ProfileReviewsListViewModel: ObservableObject {
     }
 
     func reload() async {
+        await load()
+    }
+
+    func selectRole(_ role: ReviewRole) async {
+        selectedRole = role
         await load()
     }
 
@@ -38,8 +46,9 @@ final class ProfileReviewsListViewModel: ObservableObject {
         state = .loading
 
         do {
-            let reviews = try await service.fetchMyReviews(token: token, limit: 50, offset: 0)
-            self.reviews = reviews
+            let feed = try await service.fetchMyReviewsFeed(token: token, limit: 50, offset: 0, role: selectedRole)
+            self.reviews = feed.reviews
+            self.summary = feed.summary
             self.state = .loaded
         } catch {
             if error.isUnauthorizedResponse {

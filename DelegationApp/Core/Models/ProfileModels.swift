@@ -12,6 +12,47 @@ struct ProfileStats: Equatable {
     let cancelledCount: Int
 }
 
+enum ReviewRole: String, CaseIterable, Identifiable, Equatable {
+    case performer
+    case customer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .performer:
+            return "Исполнитель"
+        case .customer:
+            return "Заказчик"
+        }
+    }
+}
+
+struct ReviewSummary: Equatable {
+    let average: Double
+    let count: Int
+
+    static let empty = ReviewSummary(average: 0, count: 0)
+}
+
+struct UserReviewFeed: Equatable {
+    let role: ReviewRole
+    let summary: ReviewSummary
+    let reviews: [UserProfileReview]
+}
+
+struct ReviewEligibility: Equatable {
+    let announcementID: String
+    let announcementTitle: String?
+    let threadID: String?
+    let counterpartUserID: String?
+    let counterpartDisplayName: String?
+    let counterpartRole: ReviewRole?
+    let canSubmit: Bool
+    let alreadySubmitted: Bool
+    let message: String?
+}
+
 struct EditableProfileFields: Equatable {
     let displayName: String
     let bio: String
@@ -90,6 +131,7 @@ struct UserProfileReview: Identifiable, Equatable {
     let stars: Int
     let text: String
     let createdAt: Date
+    let targetRole: ReviewRole?
 
     var authorInitials: String {
         let parts = authorName

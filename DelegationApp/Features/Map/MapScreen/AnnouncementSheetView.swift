@@ -166,6 +166,11 @@ struct AnnouncementSheetView: View {
                     title: "Это ваше объявление",
                     subtitle: "Отклики доступны только для других пользователей."
                 )
+            } else if !announcement.canAcceptOffers {
+                statusBanner(
+                    title: "Отклики закрыты",
+                    subtitle: "Задание уже принято или больше не доступно для новых исполнителей."
+                )
             } else if session.token == nil {
                 statusBanner(
                     title: "Нужна авторизация",
@@ -192,7 +197,9 @@ struct AnnouncementSheetView: View {
                         } label: {
                             composerButtonLabel(
                                 title: "Быстрый отклик",
-                                subtitle: "Без цены",
+                                subtitle: announcement.quickOfferPrice.map {
+                                    "Мин. цена \($0.formatted(.number.grouping(.automatic))) ₽"
+                                } ?? "Мин. цена",
                                 isLoading: isSubmittingQuick,
                                 isPrimary: true
                             )
@@ -377,6 +384,11 @@ struct AnnouncementSheetView: View {
             return
         }
 
+        guard announcement.canAcceptOffers else {
+            alertState = SheetAlertState(title: "Отклики закрыты", message: "По этому заданию больше нельзя отправить новый отклик.")
+            return
+        }
+
         if proposedPrice == nil {
             isSubmittingQuick = true
         } else {
@@ -388,11 +400,20 @@ struct AnnouncementSheetView: View {
         }
 
         do {
+            let quickPrice = announcement.quickOfferPrice ?? Self.defaultOfferPrice(for: announcement)
+            let pricingMode: OfferPricingMode = proposedPrice == nil ? .quickMinPrice : .counterPrice
+            let effectiveProposedPrice = proposedPrice ?? quickPrice
+            let agreedPrice = proposedPrice == nil ? quickPrice : nil
+            let minimumPriceAccepted = proposedPrice == nil
+
             _ = try await service.createOffer(
                 token: token,
                 announcementId: announcement.id,
                 message: messageText,
-                proposedPrice: proposedPrice
+                proposedPrice: effectiveProposedPrice,
+                pricingMode: pricingMode,
+                agreedPrice: agreedPrice,
+                minimumPriceAccepted: minimumPriceAccepted
             )
             onRespondTap?()
             messageText = ""
@@ -407,6 +428,9 @@ struct AnnouncementSheetView: View {
     }
 
     private static func defaultOfferPrice(for announcement: AnnouncementDTO) -> Int {
+        if let quickOfferPrice = announcement.quickOfferPrice {
+            return max(0, quickOfferPrice)
+        }
         if let budgetMin = announcement.budgetMinValue, let budgetMax = announcement.budgetMaxValue {
             return max(budgetMin, (budgetMin + budgetMax) / 2)
         }

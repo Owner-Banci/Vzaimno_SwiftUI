@@ -100,13 +100,16 @@ extension AnnouncementDTO {
             return "pending_review"
         case "declined":
             return "rejected"
+        case "open":
+            return "active"
         default:
             return status.lowercased()
         }
     }
 
     var isActiveStatus: Bool {
-        normalizedStatus == "active"
+        let status = normalizedStatus
+        return status == "active" || status == "assigned" || status == "in_progress"
     }
 
     var isActionsStatus: Bool {
@@ -116,7 +119,7 @@ extension AnnouncementDTO {
 
     var isArchivedStatus: Bool {
         let status = normalizedStatus
-        return status == "archived" || status == "rejected"
+        return status == "archived" || status == "rejected" || status == "completed" || status == "deleted"
     }
 
     var needsStatusPolling: Bool {
@@ -160,6 +163,10 @@ extension AnnouncementDTO {
     }
 
     var decisionMessage: String? {
+        if normalizedStatus == "active", hasOnlyTechnicalModerationIssues {
+            return nil
+        }
+
         if hasOnlyTechnicalModerationIssues {
             return "Автоматическая проверка временно недоступна. Объявление ждёт дополнительной проверки."
         }

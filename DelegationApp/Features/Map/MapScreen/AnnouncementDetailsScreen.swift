@@ -85,6 +85,7 @@ struct AnnouncementDetailsScreen: View {
             ChatThreadScreen(
                 thread: thread,
                 service: container.chatService,
+                profileService: container.profileService,
                 session: vm.session
             )
         }
@@ -185,16 +186,24 @@ struct AnnouncementDetailsScreen: View {
                                 offer: offer,
                                 isProcessing: offersVM.processingOfferID == offer.id,
                                 onAccept: {
-                                Task {
-                                    guard let result = await offersVM.acceptOffer(offer.id) else { return }
-                                    activeThread = ChatThreadPreview.acceptedOfferThread(
-                                        threadID: result.threadID,
-                                        performer: result.offer.performer,
-                                        announcementTitle: currentItem.title
-                                    )
-                                    await vm.reload(showLoader: false)
+                                    Task {
+                                        guard let result = await offersVM.acceptOffer(offer.id) else { return }
+                                        activeThread = ChatThreadPreview.acceptedOfferThread(
+                                            threadID: result.threadID,
+                                            performer: result.offer.performer,
+                                            announcementID: currentItem.id,
+                                            announcementTitle: currentItem.title
+                                        )
+                                        await vm.reload(showLoader: false)
+                                    }
+                                },
+                                onReject: {
+                                    Task {
+                                        guard await offersVM.rejectOffer(offer.id) else { return }
+                                        await vm.reload(showLoader: false)
+                                    }
                                 }
-                            })
+                            )
                         }
                     }
                     .padding(16)
@@ -408,36 +417,29 @@ private struct OfferResponseCard: View {
     let offer: AnnouncementOffer
     let isProcessing: Bool
     let onAccept: () -> Void
+    let onReject: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 offerAvatar
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(offer.performer?.displayName ?? "Пользователь")
-                        .font(.system(size: 20, weight: .semibold))
-
-                    if let contact = offer.performer?.contact,
-                       !contact.isEmpty,
-                       contact != offer.performer?.displayName {
-                        Text(contact)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Theme.ColorToken.textSecondary)
-                    }
+                        .font(.system(size: 17, weight: .semibold))
 
                     HStack(spacing: 6) {
                         Image(systemName: "mappin.and.ellipse")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                         Text(offer.performer?.city ?? "Город не указан")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: 12, weight: .medium))
                     }
                     .foregroundStyle(Theme.ColorToken.textSecondary)
 
                     Text(offer.summaryText)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Theme.ColorToken.textPrimary)
-                        .lineLimit(3)
+                        .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
 
@@ -447,14 +449,14 @@ private struct OfferResponseCard: View {
                     Image(systemName: "star.fill")
                         .foregroundStyle(Theme.ColorToken.peach)
                     Text((offer.performerStats?.ratingAverage ?? 0).formatted(.number.precision(.fractionLength(1))))
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                 }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
                 .background(Capsule().fill(Color.white.opacity(0.82)))
             }
 
-            HStack(spacing: 26) {
+            HStack(spacing: 18) {
                 metricBlock(
                     value: (offer.performerStats?.ratingAverage ?? 0).formatted(.number.precision(.fractionLength(1))),
                     caption: "Рейтинг",
@@ -490,21 +492,42 @@ private struct OfferResponseCard: View {
                         .tint(Theme.ColorToken.turquoise)
                         .frame(width: 52, height: 52)
                 } else {
-                    // TODO: Вернуть отдельное отклонение, когда стабилизируем сценарий
-                    // с несколькими исполнителями и финальным owner-flow.
-                    actionButton(
-                        systemName: offer.status == "accepted" ? "bubble.left.and.bubble.right.fill" : "checkmark",
-                        fill: Theme.ColorToken.turquoise,
-                        foreground: Theme.ColorToken.milk,
-                        borderColor: .clear,
-                        borderWidth: 0,
-                        accessibilityLabel: offer.status == "accepted" ? "Открыть чат" : "Принять",
-                        action: onAccept
-                    )
+                    HStack(spacing: 10) {
+                        if offer.status == "accepted" {
+                            actionButton(
+                                systemName: "bubble.left.and.bubble.right.fill",
+                                fill: Theme.ColorToken.turquoise,
+                                foreground: Theme.ColorToken.milk,
+                                borderColor: .clear,
+                                borderWidth: 0,
+                                accessibilityLabel: "Открыть чат",
+                                action: onAccept
+                            )
+                        } else {
+                            actionButton(
+                                systemName: "xmark",
+                                fill: Color.white,
+                                foreground: Theme.ColorToken.textPrimary,
+                                borderColor: Theme.ColorToken.textSecondary.opacity(0.24),
+                                borderWidth: 1,
+                                accessibilityLabel: "Отклонить",
+                                action: onReject
+                            )
+                            actionButton(
+                                systemName: "checkmark",
+                                fill: Theme.ColorToken.turquoise,
+                                foreground: Theme.ColorToken.milk,
+                                borderColor: .clear,
+                                borderWidth: 0,
+                                accessibilityLabel: "Принять",
+                                action: onAccept
+                            )
+                        }
+                    }
                 }
             }
         }
-        .padding(18)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LinearGradient(
@@ -536,7 +559,7 @@ private struct OfferResponseCard: View {
                 placeholder
             }
         }
-        .frame(width: 64, height: 64)
+        .frame(width: 52, height: 52)
         .clipShape(Circle())
     }
 
@@ -545,7 +568,7 @@ private struct OfferResponseCard: View {
             .fill(Color.white.opacity(0.92))
             .overlay(
                 Text(offer.performer?.initials ?? "?")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(.primary)
             )
             .overlay(
@@ -567,10 +590,10 @@ private struct OfferResponseCard: View {
                         .foregroundStyle(iconColor)
                 }
                 Text(value)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
             }
             Text(caption)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Theme.ColorToken.textSecondary)
         }
     }

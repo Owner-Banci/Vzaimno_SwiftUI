@@ -181,6 +181,8 @@ struct AnnouncementSearchFilters: Equatable {
         query: String,
         routeDistanceMeters: Double?
     ) -> Bool {
+        guard announcement.canAppearOnMap else { return false }
+
         let structured = announcement.structuredData
 
         if !selectedActions.isEmpty {

@@ -12,7 +12,7 @@ final class MockChatService: ChatService {
                 lastMessageText: "Ман сасилдок",
                 lastMessageAt: .now,
                 unreadCount: 1,
-                announcementID: nil,
+                announcementID: "mock-task-1",
                 announcementTitle: "Доставка посылки"
             ),
             ChatThreadPreview(
@@ -24,7 +24,7 @@ final class MockChatService: ChatService {
                 lastMessageText: "Посылку доставил",
                 lastMessageAt: Date().addingTimeInterval(-86_400),
                 unreadCount: 0,
-                announcementID: nil,
+                announcementID: "mock-task-2",
                 announcementTitle: "Помочь донести сумки"
             ),
         ]
