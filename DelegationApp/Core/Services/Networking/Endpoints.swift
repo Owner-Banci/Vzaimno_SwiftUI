@@ -45,6 +45,11 @@ enum APIEndpoint {
     case chats
     case chatMessages(threadID: String, limit: Int, before: String?)
     case sendChatMessage(threadID: String)
+    case supportThread
+    case supportMessages(threadID: String, limit: Int, before: String?)
+    case sendSupportMessage(threadID: String)
+    case reportReasonCodes
+    case submitReport
 
     var path: String {
         switch self {
@@ -82,14 +87,19 @@ enum APIEndpoint {
         case .chats: return "chats"
         case .chatMessages(let threadID, _, _): return "chats/\(threadID)/messages"
         case .sendChatMessage(let threadID): return "chats/\(threadID)/messages"
+        case .supportThread: return "support/thread"
+        case .supportMessages(let threadID, _, _): return "support/thread/\(threadID)/messages"
+        case .sendSupportMessage(let threadID): return "support/thread/\(threadID)/messages"
+        case .reportReasonCodes: return "reports/reason-codes"
+        case .submitReport: return "reports"
         }
     }
 
     var method: HTTPMethod {
         switch self {
-        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .updateExecutionStage, .sendChatMessage, .routeBuild, .submitAnnouncementReview:
+        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .updateExecutionStage, .sendChatMessage, .sendSupportMessage, .routeBuild, .submitAnnouncementReview, .submitReport:
             return .POST
-        case .me, .usersMe, .myReviews, .announcementReviewContext, .myAnnouncements, .publicAnnouncements, .announcement, .announcementOffers, .announcementRoute, .announcementRouteContext, .myCurrentRoute, .myCurrentRouteContext, .chats, .chatMessages:
+        case .me, .usersMe, .myReviews, .announcementReviewContext, .myAnnouncements, .publicAnnouncements, .announcement, .announcementOffers, .announcementRoute, .announcementRouteContext, .myCurrentRoute, .myCurrentRouteContext, .chats, .chatMessages, .supportThread, .supportMessages, .reportReasonCodes:
             return .GET
         case .uploadAnnouncementMedia, .appealAnnouncement:
             return .POST
@@ -112,6 +122,12 @@ enum APIEndpoint {
             }
             return items
         case .chatMessages(_, let limit, let before):
+            var items = [URLQueryItem(name: "limit", value: String(limit))]
+            if let before, !before.isEmpty {
+                items.append(URLQueryItem(name: "before", value: before))
+            }
+            return items
+        case .supportMessages(_, let limit, let before):
             var items = [URLQueryItem(name: "limit", value: String(limit))]
             if let before, !before.isEmpty {
                 items.append(URLQueryItem(name: "before", value: before))

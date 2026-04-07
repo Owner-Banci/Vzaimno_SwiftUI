@@ -290,8 +290,8 @@ struct AnnouncementDetailsScreen: View {
                 fieldRow("Бюджет", value: budgetText, severity: .none)
             }
 
-            if let notes = currentItem.data["notes"]?.stringValue, !notes.isEmpty {
-                fieldRow("Описание", value: notes, severity: currentItem.severity(for: "notes"))
+            if let description = currentItem.detailsDescriptionText {
+                fieldRow("Описание", value: description, severity: currentItem.severity(for: "notes"))
             }
 
             if currentItem.category == "delivery" {

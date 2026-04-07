@@ -558,6 +558,17 @@ extension AnnouncementDTO {
         )
     }
 
+    var detailsDescriptionText: String? {
+        if let notes = structuredData.notes {
+            return notes
+        }
+
+        return taskStringValue(
+            paths: [["task", "search", "generated_description"]],
+            legacyKeys: ["generated_description"]
+        )
+    }
+
     var mapCoordinate: CLLocationCoordinate2D? {
         taskPointCoordinate(
             paths: [

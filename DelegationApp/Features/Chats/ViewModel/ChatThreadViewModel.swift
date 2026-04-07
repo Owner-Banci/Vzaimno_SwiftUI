@@ -6,9 +6,13 @@ final class ChatThreadViewModel: ObservableObject {
     @Published var draftText: String = ""
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var isSending: Bool = false
+    @Published private(set) var isLoadingReportOptions: Bool = false
+    @Published private(set) var isSubmittingReport: Bool = false
     @Published private(set) var isSubmittingReview: Bool = false
     @Published private(set) var reviewContext: ReviewEligibility?
+    @Published private(set) var reportReasonOptions: [ReportReasonOption] = []
     @Published var isPresentingReviewSheet: Bool = false
+    @Published var isPresentingReportSheet: Bool = false
     @Published var errorText: String?
 
     let thread: ChatThreadPreview
@@ -37,6 +41,20 @@ final class ChatThreadViewModel: ObservableObject {
 
     var canSend: Bool {
         !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+    }
+
+    var canPresentReportAction: Bool {
+        resolvedReportTarget() != nil
+    }
+
+    var reportTargetSummary: String {
+        resolvedReportTarget()?.summary ?? "Не удалось определить объект жалобы."
+    }
+
+    var availableReportReasonOptions: [ReportReasonOption] {
+        guard let target = resolvedReportTarget() else { return reportReasonOptions }
+        let filtered = reportReasonOptions.filter { $0.supports(targetType: target.type) }
+        return filtered.isEmpty ? reportReasonOptions : filtered
     }
 
     func onAppear() async {
@@ -70,7 +88,7 @@ final class ChatThreadViewModel: ObservableObject {
         }
 
         do {
-            let fetched = try await service.fetchMessages(token: token, threadID: thread.threadID, limit: 50, before: nil)
+            let fetched = try await fetchCurrentThreadMessages(token: token, limit: 50, before: nil)
             applyMessages(fetched)
             if fetched.contains(where: \.isSystem) {
                 await loadReviewContext()
@@ -98,7 +116,7 @@ final class ChatThreadViewModel: ObservableObject {
         defer { isSending = false }
 
         do {
-            let message = try await service.sendMessage(token: token, threadID: thread.threadID, text: text)
+            let message = try await sendCurrentThreadMessage(token: token, text: text)
             appendMessageIfNeeded(message)
             draftText = ""
             errorText = nil
@@ -157,6 +175,79 @@ final class ChatThreadViewModel: ObservableObject {
         do {
             try await profileService.submitReview(token: token, announcementID: announcementID, stars: stars, text: text)
             await loadReviewContext()
+            return true
+        } catch {
+            if error.isUnauthorizedResponse {
+                await session.logout()
+                return false
+            }
+            errorText = error.localizedDescription
+            return false
+        }
+    }
+
+    func presentReportSheet() async {
+        guard canPresentReportAction else {
+            errorText = "Не удалось определить объект жалобы в этом чате."
+            return
+        }
+        guard let token = session.token else {
+            errorText = "Сессия не найдена. Войдите снова."
+            return
+        }
+
+        if reportReasonOptions.isEmpty {
+            isLoadingReportOptions = true
+            defer { isLoadingReportOptions = false }
+
+            do {
+                reportReasonOptions = try await service.fetchReportReasonOptions(token: token)
+            } catch {
+                if error.isUnauthorizedResponse {
+                    await session.logout()
+                    return
+                }
+                errorText = error.localizedDescription
+                return
+            }
+        }
+
+        if availableReportReasonOptions.isEmpty {
+            errorText = "Для этого объекта сейчас нет доступных причин жалобы."
+            return
+        }
+
+        isPresentingReportSheet = true
+    }
+
+    func submitReport(reasonCode: String, comment: String) async -> Bool {
+        guard let token = session.token else {
+            errorText = "Сессия не найдена. Войдите снова."
+            return false
+        }
+        guard let target = resolvedReportTarget() else {
+            errorText = "Не удалось определить объект жалобы."
+            return false
+        }
+
+        let normalizedReasonCode = reasonCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedReasonCode.isEmpty else {
+            errorText = "Выберите причину жалобы."
+            return false
+        }
+
+        isSubmittingReport = true
+        defer { isSubmittingReport = false }
+
+        do {
+            try await service.submitReport(
+                token: token,
+                targetType: target.type,
+                targetID: target.id,
+                reasonCode: normalizedReasonCode,
+                reasonText: comment
+            )
+            isPresentingReportSheet = false
             return true
         } catch {
             if error.isUnauthorizedResponse {
@@ -310,6 +401,48 @@ final class ChatThreadViewModel: ObservableObject {
         }
     }
 
+    private func fetchCurrentThreadMessages(token: String, limit: Int, before: Date?) async throws -> [ChatMessage] {
+        if thread.kind == "support" {
+            return try await service.fetchSupportMessages(token: token, threadID: thread.threadID, limit: limit, before: before)
+        }
+        return try await service.fetchMessages(token: token, threadID: thread.threadID, limit: limit, before: before)
+    }
+
+    private func sendCurrentThreadMessage(token: String, text: String) async throws -> ChatMessage {
+        if thread.kind == "support" {
+            return try await service.sendSupportMessage(token: token, threadID: thread.threadID, text: text)
+        }
+        return try await service.sendMessage(token: token, threadID: thread.threadID, text: text)
+    }
+
+    private func resolvedReportTarget() -> ReportTarget? {
+        if let message = messages.last(where: { !$0.isSystem && $0.senderID != currentUserID }) {
+            return ReportTarget(
+                type: "message",
+                id: message.id,
+                summary: "Жалоба будет связана с последним сообщением собеседника."
+            )
+        }
+
+        if let partnerID = normalizedIdentifier(thread.partnerID) {
+            return ReportTarget(
+                type: "user",
+                id: partnerID,
+                summary: "Жалоба будет отправлена на пользователя \(thread.partnerName)."
+            )
+        }
+
+        if let announcementID = normalizedIdentifier(thread.announcementID) {
+            return ReportTarget(
+                type: "task",
+                id: announcementID,
+                summary: "Жалоба будет связана с заданием \(thread.announcementTitle ?? "без названия")."
+            )
+        }
+
+        return nil
+    }
+
     private func stopRefreshLoop() {
         refreshTask?.cancel()
         refreshTask = nil
@@ -320,4 +453,17 @@ private struct SocketEnvelope: Decodable {
     let type: String
     let payload: ChatMessageDTO?
     let message: String?
+}
+
+private struct ReportTarget {
+    let type: String
+    let id: String
+    let summary: String
+}
+
+private func normalizedIdentifier(_ value: String?) -> String? {
+    guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+        return nil
+    }
+    return trimmed
 }

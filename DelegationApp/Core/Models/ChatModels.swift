@@ -11,6 +11,7 @@ struct ChatThreadPreview: Identifiable, Equatable, Hashable {
     let unreadCount: Int
     let announcementID: String?
     let announcementTitle: String?
+    let isPinned: Bool
 
     var id: String { threadID }
 
@@ -53,7 +54,8 @@ struct ChatThreadPreview: Identifiable, Equatable, Hashable {
             lastMessageAt: nil,
             unreadCount: 0,
             announcementID: announcementID,
-            announcementTitle: announcementTitle
+            announcementTitle: announcementTitle,
+            isPinned: false
         )
     }
 }
@@ -81,19 +83,25 @@ struct ChatThreadPreviewDTO: Codable {
     let unread_count: Int
     let announcement_id: String?
     let announcement_title: String?
+    let is_pinned: Bool?
 
     var domain: ChatThreadPreview {
-        ChatThreadPreview(
+        let resolvedPartnerName = kind == "support"
+            ? "Поддержка Vzaimno"
+            : (normalizedChatText(partner_display_name) ?? "Собеседник")
+        return ChatThreadPreview(
             threadID: thread_id,
             kind: kind,
             partnerID: partner_id,
-            partnerName: normalizedChatText(partner_display_name) ?? "Собеседник",
+            partnerName: resolvedPartnerName,
             partnerAvatarURL: partner_avatar_url.flatMap { AppURLResolver.resolveAPIURL(from: $0) },
-            lastMessageText: normalizedChatText(last_message_text) ?? "Чат открыт",
+            lastMessageText: normalizedChatText(last_message_text)
+                ?? (kind == "support" ? "Чат с поддержкой открыт" : "Чат открыт"),
             lastMessageAt: ProfileDateParser.parse(last_message_at),
             unreadCount: unread_count,
             announcementID: announcement_id,
-            announcementTitle: normalizedChatText(announcement_title)
+            announcementTitle: normalizedChatText(announcement_title),
+            isPinned: is_pinned ?? (kind == "support")
         )
     }
 }
@@ -118,6 +126,50 @@ struct ChatMessageDTO: Codable {
 
 struct SendChatMessageRequestDTO: Codable {
     let text: String
+}
+
+struct SupportThreadDTO: Codable {
+    let thread_id: String
+}
+
+struct ReportReasonOption: Identifiable, Equatable, Hashable {
+    let code: String
+    let title: String
+    let description: String
+    let allowedTargetTypes: [String]
+
+    var id: String { code }
+
+    func supports(targetType: String) -> Bool {
+        allowedTargetTypes.contains(targetType)
+    }
+}
+
+struct ReportReasonOptionDTO: Codable {
+    let code: String
+    let title: String
+    let description: String
+    let allowed_target_types: [String]
+
+    var domain: ReportReasonOption {
+        ReportReasonOption(
+            code: code,
+            title: title,
+            description: description,
+            allowedTargetTypes: allowed_target_types
+        )
+    }
+}
+
+struct ReportSubmissionRequestDTO: Codable {
+    let target_type: String
+    let target_id: String
+    let reason_code: String
+    let reason_text: String?
+}
+
+struct ReportDTO: Codable {
+    let id: String
 }
 
 private func normalizedChatText(_ value: String?) -> String? {

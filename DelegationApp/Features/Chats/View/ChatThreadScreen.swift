@@ -33,6 +33,17 @@ struct ChatThreadScreen: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .sheet(isPresented: $vm.isPresentingReportSheet) {
+            ChatReportSheet(
+                targetSummary: vm.reportTargetSummary,
+                reasonOptions: vm.availableReportReasonOptions,
+                isSubmitting: vm.isSubmittingReport
+            ) { reasonCode, comment in
+                await vm.submitReport(reasonCode: reasonCode, comment: comment)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .alert(
             "Ошибка",
             isPresented: Binding(
@@ -65,7 +76,7 @@ struct ChatThreadScreen: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(vm.thread.partnerName)
+                Text(vm.thread.kind == "support" ? "Поддержка Vzaimno" : vm.thread.partnerName)
                     .font(.system(size: 18, weight: .bold))
 
                 if let announcementTitle = vm.thread.announcementTitle, !announcementTitle.isEmpty {
@@ -76,6 +87,30 @@ struct ChatThreadScreen: View {
             }
 
             Spacer()
+
+            if vm.canPresentReportAction {
+                Button {
+                    Task { await vm.presentReportSheet() }
+                } label: {
+                    Group {
+                        if vm.isLoadingReportOptions {
+                            ProgressView()
+                                .tint(Theme.ColorToken.turquoise)
+                        } else {
+                            Image(systemName: "exclamationmark.bubble")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(Theme.ColorToken.turquoise)
+                        }
+                    }
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(Color.white.opacity(0.86))
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(vm.isLoadingReportOptions)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -137,7 +172,7 @@ struct ChatThreadScreen: View {
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 12) {
-            TextField("Введите сообщение...", text: $vm.draftText, axis: .vertical)
+            TextField(vm.thread.kind == "support" ? "Напишите в поддержку..." : "Введите сообщение...", text: $vm.draftText, axis: .vertical)
                 .lineLimit(1...4)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
@@ -200,6 +235,141 @@ struct ChatThreadScreen: View {
             }
         } else {
             proxy.scrollTo(lastID, anchor: .bottom)
+        }
+    }
+}
+
+private struct ChatReportSheet: View {
+    let targetSummary: String
+    let reasonOptions: [ReportReasonOption]
+    let isSubmitting: Bool
+    let onSubmit: (String, String) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedReasonCode: String = ""
+    @State private var comment: String = ""
+
+    private var canSubmit: Bool {
+        !selectedReasonCode.isEmpty && !isSubmitting
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Причина жалобы")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Theme.ColorToken.textPrimary)
+
+                        Text(targetSummary)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.ColorToken.textSecondary)
+                    }
+
+                    VStack(spacing: 10) {
+                        ForEach(reasonOptions) { option in
+                            Button {
+                                selectedReasonCode = option.code
+                            } label: {
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: selectedReasonCode == option.code ? "largecircle.fill.circle" : "circle")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundStyle(
+                                            selectedReasonCode == option.code
+                                            ? Theme.ColorToken.turquoise
+                                            : Theme.ColorToken.textSecondary
+                                        )
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(option.title)
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundStyle(Theme.ColorToken.textPrimary)
+
+                                        Text(option.description)
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(Theme.ColorToken.textSecondary)
+                                            .multilineTextAlignment(.leading)
+                                    }
+
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color.white)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .stroke(
+                                            selectedReasonCode == option.code
+                                            ? Theme.ColorToken.turquoise
+                                            : Theme.ColorToken.turquoise.opacity(0.12),
+                                            lineWidth: 1
+                                        )
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Комментарий")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.ColorToken.textPrimary)
+
+                        TextField("Опишите, что произошло", text: $comment, axis: .vertical)
+                            .lineLimit(3...6)
+                            .padding(14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.white)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Theme.ColorToken.turquoise.opacity(0.12), lineWidth: 1)
+                            )
+                    }
+                }
+                .padding(16)
+            }
+            .background(Theme.ColorToken.milk.ignoresSafeArea())
+            .navigationTitle("Пожаловаться")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Отмена") {
+                        dismiss()
+                    }
+                    .disabled(isSubmitting)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            let didSubmit = await onSubmit(selectedReasonCode, comment)
+                            if didSubmit {
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        if isSubmitting {
+                            ProgressView()
+                                .tint(Theme.ColorToken.turquoise)
+                        } else {
+                            Text("Отправить")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                    }
+                    .disabled(!canSubmit)
+                }
+            }
+            .onAppear {
+                if selectedReasonCode.isEmpty {
+                    selectedReasonCode = reasonOptions.first?.code ?? ""
+                }
+            }
         }
     }
 }

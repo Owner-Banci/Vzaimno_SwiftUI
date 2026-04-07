@@ -119,6 +119,10 @@ struct AnnouncementSheetView: View {
         Group {
             if isDelivery {
                 SectionCard(title: "Детали") {
+                    if let description = announcement.detailsDescriptionText {
+                        valueRow("Описание", value: description)
+                    }
+
                     if let dimensions = dimensionsText {
                         valueRow("Габариты", value: dimensions)
                     }
@@ -133,6 +137,10 @@ struct AnnouncementSheetView: View {
                 }
             } else {
                 SectionCard(title: "Детали") {
+                    if let description = announcement.detailsDescriptionText {
+                        valueRow("Описание", value: description)
+                    }
+
                     valueRow("Фото", value: announcement.imageURLs.isEmpty ? "Не прикреплено" : "Прикреплено: \(announcement.imageURLs.count)")
                 }
             }

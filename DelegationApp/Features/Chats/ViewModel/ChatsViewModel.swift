@@ -50,7 +50,7 @@ final class ChatsViewModel: ObservableObject {
         }
 
         do {
-            chats = try await service.fetchThreads(token: token)
+            chats = sortChats(try await service.fetchThreads(token: token))
             errorText = nil
         } catch {
             if error.isUnauthorizedResponse {
@@ -96,8 +96,18 @@ final class ChatsViewModel: ObservableObject {
             lastMessageAt: activity.createdAt,
             unreadCount: unreadCount,
             announcementID: current.announcementID,
-            announcementTitle: current.announcementTitle
+            announcementTitle: current.announcementTitle,
+            isPinned: current.isPinned
         )
-        chats.sort { ($0.lastMessageAt ?? .distantPast) > ($1.lastMessageAt ?? .distantPast) }
+        chats = sortChats(chats)
+    }
+
+    private func sortChats(_ items: [ChatThreadPreview]) -> [ChatThreadPreview] {
+        items.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned {
+                return lhs.isPinned && !rhs.isPinned
+            }
+            return (lhs.lastMessageAt ?? .distantPast) > (rhs.lastMessageAt ?? .distantPast)
+        }
     }
 }
