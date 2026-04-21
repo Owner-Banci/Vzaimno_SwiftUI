@@ -45,6 +45,12 @@ enum APIEndpoint {
     case chats
     case chatMessages(threadID: String, limit: Int, before: String?)
     case sendChatMessage(threadID: String)
+    case chatsRealtimeCapabilities
+    case activeDispute(threadID: String)
+    case openDispute(threadID: String)
+    case acceptCounterpartyDispute(threadID: String, disputeID: String)
+    case respondCounterpartyDispute(threadID: String, disputeID: String)
+    case selectDisputeOption(threadID: String, disputeID: String)
     case supportThread
     case supportMessages(threadID: String, limit: Int, before: String?)
     case sendSupportMessage(threadID: String)
@@ -87,6 +93,12 @@ enum APIEndpoint {
         case .chats: return "chats"
         case .chatMessages(let threadID, _, _): return "chats/\(threadID)/messages"
         case .sendChatMessage(let threadID): return "chats/\(threadID)/messages"
+        case .chatsRealtimeCapabilities: return "chats/realtime-capabilities"
+        case .activeDispute(let threadID): return "chats/\(threadID)/disputes/active"
+        case .openDispute(let threadID): return "chats/\(threadID)/disputes/open"
+        case .acceptCounterpartyDispute(let threadID, let disputeID): return "chats/\(threadID)/disputes/\(disputeID)/counterparty/accept"
+        case .respondCounterpartyDispute(let threadID, let disputeID): return "chats/\(threadID)/disputes/\(disputeID)/counterparty/respond"
+        case .selectDisputeOption(let threadID, let disputeID): return "chats/\(threadID)/disputes/\(disputeID)/options/select"
         case .supportThread: return "support/thread"
         case .supportMessages(let threadID, _, _): return "support/thread/\(threadID)/messages"
         case .sendSupportMessage(let threadID): return "support/thread/\(threadID)/messages"
@@ -97,9 +109,9 @@ enum APIEndpoint {
 
     var method: HTTPMethod {
         switch self {
-        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .updateExecutionStage, .sendChatMessage, .sendSupportMessage, .routeBuild, .submitAnnouncementReview, .submitReport:
+        case .register, .login, .createAnnouncement, .registerDevice, .submitOffer, .acceptOffer, .rejectOffer, .updateExecutionStage, .sendChatMessage, .openDispute, .acceptCounterpartyDispute, .respondCounterpartyDispute, .selectDisputeOption, .sendSupportMessage, .routeBuild, .submitAnnouncementReview, .submitReport:
             return .POST
-        case .me, .usersMe, .myReviews, .announcementReviewContext, .myAnnouncements, .publicAnnouncements, .announcement, .announcementOffers, .announcementRoute, .announcementRouteContext, .myCurrentRoute, .myCurrentRouteContext, .chats, .chatMessages, .supportThread, .supportMessages, .reportReasonCodes:
+        case .me, .usersMe, .myReviews, .announcementReviewContext, .myAnnouncements, .publicAnnouncements, .announcement, .announcementOffers, .announcementRoute, .announcementRouteContext, .myCurrentRoute, .myCurrentRouteContext, .chats, .chatMessages, .chatsRealtimeCapabilities, .activeDispute, .supportThread, .supportMessages, .reportReasonCodes:
             return .GET
         case .uploadAnnouncementMedia, .appealAnnouncement:
             return .POST

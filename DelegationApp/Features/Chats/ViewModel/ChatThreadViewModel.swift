@@ -13,6 +13,11 @@ final class ChatThreadViewModel: ObservableObject {
     @Published private(set) var reportReasonOptions: [ReportReasonOption] = []
     @Published var isPresentingReviewSheet: Bool = false
     @Published var isPresentingReportSheet: Bool = false
+    @Published var isPresentingOpenDisputeSheet: Bool = false
+    @Published var isPresentingCounterpartySheet: Bool = false
+    @Published private(set) var activeDispute: DisputeState?
+    @Published private(set) var isLoadingDispute: Bool = false
+    @Published private(set) var isSubmittingDisputeAction: Bool = false
     @Published var errorText: String?
 
     let thread: ChatThreadPreview
@@ -27,6 +32,13 @@ final class ChatThreadViewModel: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var shouldKeepRealtimeConnection: Bool = false
     private var isRealtimeReady: Bool = false
+    private var socketFailureCount: Int = 0
+    private var socketBackoffUntil: Date = .distantPast
+    private var pollingIntervalSeconds: TimeInterval = 2
+    private let minPollingIntervalSeconds: TimeInterval = 2
+    private let maxPollingIntervalSeconds: TimeInterval = 30
+    private var isWebSocketAllowedByServer: Bool = true
+    private var hasLoadedRealtimeCapabilities: Bool = false
 
     init(thread: ChatThreadPreview, service: ChatService, profileService: ProfileService, session: SessionStore) {
         self.thread = thread
@@ -41,6 +53,54 @@ final class ChatThreadViewModel: ObservableObject {
 
     var canSend: Bool {
         !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+    }
+
+    var shouldShowDisputeThinkingState: Bool {
+        activeDispute?.isModelThinking == true
+    }
+
+    var canShowOpenDisputeAction: Bool {
+        guard thread.kind != "support" else { return false }
+        if let activeDispute {
+            return activeDispute.canOpenNewDispute
+        }
+        return true
+    }
+
+    var canRespondAsCounterparty: Bool {
+        guard let activeDispute else { return false }
+        return activeDispute.isWaitingCounterparty && activeDispute.viewerSide == "counterparty"
+    }
+
+    var canVoteInCurrentRound: Bool {
+        guard let activeDispute else { return false }
+        guard activeDispute.viewerPartyRole == "customer" || activeDispute.viewerPartyRole == "performer" else {
+            return false
+        }
+        return activeDispute.isWaitingRound1Votes || activeDispute.isWaitingRound2Votes
+    }
+
+    var canAnswerClarifications: Bool {
+        guard let activeDispute else { return false }
+        guard activeDispute.isWaitingClarificationAnswers else { return false }
+        guard let viewerPartyRole = activeDispute.viewerPartyRole else { return false }
+        return activeDispute.requiredAnswerPartyRoles.contains(viewerPartyRole)
+            && !activeDispute.questions.isEmpty
+    }
+
+    var disputeDeadlineText: String? {
+        guard let deadline = activeDispute?.counterpartyDeadlineAt else { return nil }
+        let now = Date()
+        let seconds = Int(deadline.timeIntervalSince(now))
+        if seconds <= 0 {
+            return "Срок ответа истёк"
+        }
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        if hours > 0 {
+            return "\(hours) ч \(minutes) мин"
+        }
+        return "\(minutes) мин"
     }
 
     var canPresentReportAction: Bool {
@@ -59,11 +119,15 @@ final class ChatThreadViewModel: ObservableObject {
 
     func onAppear() async {
         shouldKeepRealtimeConnection = true
+        resetRealtimeBackoff()
         isRealtimeReady = false
+        await refreshRealtimeCapabilitiesIfNeeded(force: true)
         await loadMessages()
-        await loadReviewContext()
+        if reviewContext == nil {
+            await loadReviewContext()
+        }
         startRefreshLoopIfNeeded()
-        connectSocketIfNeeded()
+        connectSocketIfNeeded(force: true)
     }
 
     func onDisappear() {
@@ -88,11 +152,14 @@ final class ChatThreadViewModel: ObservableObject {
         }
 
         do {
+            let previousLatestSystemID = latestSystemMessageID(in: messages)
             let fetched = try await fetchCurrentThreadMessages(token: token, limit: 50, before: nil)
             applyMessages(fetched)
-            if fetched.contains(where: \.isSystem) {
+            let currentLatestSystemID = latestSystemMessageID(in: messages)
+            if reviewContext == nil || currentLatestSystemID != previousLatestSystemID {
                 await loadReviewContext()
             }
+            await loadActiveDispute(showLoader: false)
             errorText = nil
         } catch {
             if error.isUnauthorizedResponse {
@@ -119,8 +186,10 @@ final class ChatThreadViewModel: ObservableObject {
             let message = try await sendCurrentThreadMessage(token: token, text: text)
             appendMessageIfNeeded(message)
             draftText = ""
+            pollingIntervalSeconds = minPollingIntervalSeconds
+            await loadActiveDispute(showLoader: false)
             errorText = nil
-            connectSocketIfNeeded()
+            connectSocketIfNeeded(force: true)
         } catch {
             if error.isUnauthorizedResponse {
                 await session.logout()
@@ -128,6 +197,175 @@ final class ChatThreadViewModel: ObservableObject {
             }
             errorText = error.localizedDescription
         }
+    }
+
+    func loadActiveDispute(showLoader: Bool = false) async {
+        guard thread.kind != "support" else {
+            activeDispute = nil
+            return
+        }
+        guard let token = session.token else {
+            activeDispute = nil
+            return
+        }
+
+        if showLoader {
+            isLoadingDispute = true
+        }
+        defer {
+            if showLoader {
+                isLoadingDispute = false
+            }
+        }
+
+        do {
+            activeDispute = try await service.fetchActiveDispute(token: token, threadID: thread.threadID)
+        } catch {
+            if error.isUnauthorizedResponse {
+                await session.logout()
+                return
+            }
+            if !error.isForbiddenResponse {
+                errorText = error.localizedDescription
+            }
+        }
+    }
+
+    func openDispute(
+        problemTitle: String,
+        problemDescription: String,
+        requestedCompensationRub: Int,
+        desiredResolution: String
+    ) async -> Bool {
+        guard let token = session.token else {
+            errorText = "Сессия не найдена. Войдите снова."
+            return false
+        }
+        isSubmittingDisputeAction = true
+        defer { isSubmittingDisputeAction = false }
+
+        do {
+            activeDispute = try await service.openDispute(
+                token: token,
+                threadID: thread.threadID,
+                problemTitle: problemTitle,
+                problemDescription: problemDescription,
+                requestedCompensationRub: requestedCompensationRub,
+                desiredResolution: desiredResolution
+            )
+            isPresentingOpenDisputeSheet = false
+            await loadMessages(showLoader: false)
+            return true
+        } catch {
+            if error.isUnauthorizedResponse {
+                await session.logout()
+                return false
+            }
+            errorText = error.localizedDescription
+            return false
+        }
+    }
+
+    func acceptCounterpartyTerms() async -> Bool {
+        guard let token = session.token, let activeDispute else {
+            errorText = "Не найден активный спор."
+            return false
+        }
+        isSubmittingDisputeAction = true
+        defer { isSubmittingDisputeAction = false }
+
+        do {
+            self.activeDispute = try await service.acceptCounterpartyDispute(
+                token: token,
+                threadID: thread.threadID,
+                disputeID: activeDispute.id
+            )
+            isPresentingCounterpartySheet = false
+            await loadMessages(showLoader: false)
+            return true
+        } catch {
+            if error.isUnauthorizedResponse {
+                await session.logout()
+                return false
+            }
+            errorText = error.localizedDescription
+            return false
+        }
+    }
+
+    func submitCounterpartyResponse(
+        responseDescription: String,
+        acceptableRefundPercent: Int,
+        desiredResolution: String
+    ) async -> Bool {
+        guard let token = session.token, let activeDispute else {
+            errorText = "Не найден активный спор."
+            return false
+        }
+        isSubmittingDisputeAction = true
+        defer { isSubmittingDisputeAction = false }
+
+        do {
+            self.activeDispute = try await service.respondCounterpartyDispute(
+                token: token,
+                threadID: thread.threadID,
+                disputeID: activeDispute.id,
+                responseDescription: responseDescription,
+                acceptableRefundPercent: acceptableRefundPercent,
+                desiredResolution: desiredResolution
+            )
+            isPresentingCounterpartySheet = false
+            await loadMessages(showLoader: false)
+            return true
+        } catch {
+            if error.isUnauthorizedResponse {
+                await session.logout()
+                return false
+            }
+            errorText = error.localizedDescription
+            return false
+        }
+    }
+
+    func selectDisputeOption(optionID: String) async -> Bool {
+        guard let token = session.token, let activeDispute else {
+            errorText = "Не найден активный спор."
+            return false
+        }
+        isSubmittingDisputeAction = true
+        defer { isSubmittingDisputeAction = false }
+
+        do {
+            self.activeDispute = try await service.selectDisputeOption(
+                token: token,
+                threadID: thread.threadID,
+                disputeID: activeDispute.id,
+                optionID: optionID
+            )
+            await loadMessages(showLoader: false)
+            return true
+        } catch {
+            if error.isUnauthorizedResponse {
+                await session.logout()
+                return false
+            }
+            errorText = error.localizedDescription
+            return false
+        }
+    }
+
+    func shouldShowCounterpartyTapTarget(for message: ChatMessage) -> Bool {
+        guard let activeDispute, canRespondAsCounterparty else { return false }
+        guard message.isSystem else { return false }
+        guard message.text.localizedCaseInsensitiveContains("спор") else { return false }
+        guard activeDispute.openedByDisplayName.isEmpty == false else { return false }
+        return message.text.localizedCaseInsensitiveContains(activeDispute.openedByDisplayName)
+            || message.text.localizedCaseInsensitiveContains("открыл")
+    }
+
+    func openCounterpartySheetFromSystemMessage() {
+        guard canRespondAsCounterparty else { return }
+        isPresentingCounterpartySheet = true
     }
 
     func loadReviewContext() async {
@@ -259,10 +497,12 @@ final class ChatThreadViewModel: ObservableObject {
         }
     }
 
-    private func connectSocketIfNeeded() {
+    private func connectSocketIfNeeded(force: Bool = false) {
         guard socketTask == nil else { return }
         guard let token = session.token else { return }
         guard let url = makeSocketURL(token: token) else { return }
+        guard isWebSocketAllowedByServer else { return }
+        if !force, Date() < socketBackoffUntil { return }
 
         isRealtimeReady = false
 
@@ -283,6 +523,7 @@ final class ChatThreadViewModel: ObservableObject {
     private func reconnectSocketIfNeeded() {
         guard shouldKeepRealtimeConnection else { return }
         guard socketTask == nil else { return }
+        guard isWebSocketAllowedByServer else { return }
         connectSocketIfNeeded()
     }
 
@@ -306,10 +547,14 @@ final class ChatThreadViewModel: ObservableObject {
                 socketTask = nil
                 socketLoopTask = nil
                 isRealtimeReady = false
+                socketFailureCount += 1
+                let exponent = min(socketFailureCount, 6)
+                let delay = min(pow(2.0, Double(exponent)), 60.0)
+                socketBackoffUntil = Date().addingTimeInterval(delay)
+                pollingIntervalSeconds = min(maxPollingIntervalSeconds, max(minPollingIntervalSeconds, delay))
 
                 guard shouldKeepRealtimeConnection else { return }
                 await loadMessages(showLoader: false)
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
                 reconnectSocketIfNeeded()
                 return
             }
@@ -340,8 +585,14 @@ final class ChatThreadViewModel: ObservableObject {
         switch envelope.type {
         case "ready":
             isRealtimeReady = true
+            socketFailureCount = 0
+            socketBackoffUntil = .distantPast
+            pollingIntervalSeconds = minPollingIntervalSeconds
         case "message":
             isRealtimeReady = true
+            socketFailureCount = 0
+            socketBackoffUntil = .distantPast
+            pollingIntervalSeconds = minPollingIntervalSeconds
             guard let dto = envelope.payload else { return }
             appendMessageIfNeeded(dto.domain)
         case "error":
@@ -374,7 +625,10 @@ final class ChatThreadViewModel: ObservableObject {
         messages.append(message)
         messages.sort { $0.createdAt < $1.createdAt }
         if message.isSystem {
-            Task { await loadReviewContext() }
+            Task {
+                await loadReviewContext()
+                await loadActiveDispute(showLoader: false)
+            }
         }
         ChatRealtimeBroker.publish(
             ChatThreadActivity(
@@ -392,11 +646,20 @@ final class ChatThreadViewModel: ObservableObject {
 
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                let interval = max(minPollingIntervalSeconds, min(maxPollingIntervalSeconds, pollingIntervalSeconds))
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 guard !Task.isCancelled, let self else { break }
                 guard self.shouldKeepRealtimeConnection else { continue }
-                guard !self.isRealtimeReady || self.socketTask == nil else { continue }
+                if self.isRealtimeReady, self.socketTask != nil {
+                    self.pollingIntervalSeconds = self.minPollingIntervalSeconds
+                    continue
+                }
                 await self.loadMessages(showLoader: false)
+                self.pollingIntervalSeconds = min(
+                    self.maxPollingIntervalSeconds,
+                    max(self.minPollingIntervalSeconds, self.pollingIntervalSeconds * 1.6)
+                )
+                self.reconnectSocketIfNeeded()
             }
         }
     }
@@ -446,6 +709,30 @@ final class ChatThreadViewModel: ObservableObject {
     private func stopRefreshLoop() {
         refreshTask?.cancel()
         refreshTask = nil
+    }
+
+    private func refreshRealtimeCapabilitiesIfNeeded(force: Bool = false) async {
+        guard let token = session.token else { return }
+        if hasLoadedRealtimeCapabilities && !force { return }
+
+        do {
+            let capabilities = try await service.fetchRealtimeCapabilities(token: token)
+            isWebSocketAllowedByServer = capabilities.chatWebSocketEnabled
+            hasLoadedRealtimeCapabilities = true
+        } catch {
+            // Если endpoint недоступен (старый backend), пробуем websocket как раньше.
+            isWebSocketAllowedByServer = true
+        }
+    }
+
+    private func resetRealtimeBackoff() {
+        socketFailureCount = 0
+        socketBackoffUntil = .distantPast
+        pollingIntervalSeconds = minPollingIntervalSeconds
+    }
+
+    private func latestSystemMessageID(in source: [ChatMessage]) -> String? {
+        source.last { $0.isSystem }?.id
     }
 }
 

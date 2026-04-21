@@ -128,8 +128,233 @@ struct SendChatMessageRequestDTO: Codable {
     let text: String
 }
 
+struct OpenDisputeRequestDTO: Codable {
+    let problem_title: String
+    let problem_description: String
+    let requested_compensation_rub: Int
+    let desired_resolution: String
+}
+
+struct CounterpartyDisputeResponseRequestDTO: Codable {
+    let response_description: String
+    let acceptable_refund_percent: Int
+    let desired_resolution: String
+}
+
+struct SelectDisputeOptionRequestDTO: Codable {
+    let option_id: String
+}
+
+struct DisputeQuestion: Identifiable, Equatable, Hashable {
+    let id: String
+    let addressedParty: String
+    let text: String
+}
+
+struct DisputeSettlementOption: Identifiable, Equatable, Hashable {
+    let id: String
+    let lean: String
+    let title: String
+    let description: String
+    let customerAction: String
+    let performerAction: String
+    let compensationRub: Int?
+    let refundPercent: Int?
+    let resolutionKind: String
+
+    var compactTitle: String {
+        if let compensationRub {
+            return "\(title) • \(compensationRub.formatted(.number.grouping(.automatic))) ₽"
+        }
+        return title
+    }
+}
+
+struct DisputeInitiatorTerms: Equatable, Hashable {
+    let requestedCompensationRub: Int
+    let desiredResolution: String
+    let problemTitle: String
+}
+
+struct DisputeState: Equatable, Hashable {
+    let id: String
+    let threadID: String
+    let status: String
+    let initiatorUserID: String
+    let counterpartyUserID: String
+    let initiatorPartyRole: String
+    let viewerSide: String
+    let viewerPartyRole: String?
+    let openedByDisplayName: String
+    let counterpartyDeadlineAt: Date?
+    let activeRound: Int
+    let isModelThinking: Bool
+    let resolutionSummary: String?
+    let selectedOptionID: String?
+    let moderatorRequired: Bool
+    let questions: [DisputeQuestion]
+    let requiredAnswerPartyRoles: [String]
+    let options: [DisputeSettlementOption]
+    let votes: [String: String]
+    let myVoteOptionID: String?
+    let initiatorTerms: DisputeInitiatorTerms
+    let lastModelError: String?
+
+    var isWaitingCounterparty: Bool {
+        status == "open_waiting_counterparty"
+    }
+
+    var isWaitingClarificationAnswers: Bool {
+        status == "waiting_clarification_answers"
+    }
+
+    var isWaitingRound1Votes: Bool {
+        status == "waiting_round_1_votes"
+    }
+
+    var isWaitingRound2Votes: Bool {
+        status == "waiting_round_2_votes"
+    }
+
+    var canOpenNewDispute: Bool {
+        !moderatorRequired
+            && !isWaitingCounterparty
+            && !isModelThinking
+            && !isWaitingClarificationAnswers
+            && !isWaitingRound1Votes
+            && !isWaitingRound2Votes
+    }
+}
+
+struct DisputeQuestionDTO: Codable {
+    let id: String
+    let addressed_party: String
+    let text: String
+
+    var domain: DisputeQuestion {
+        DisputeQuestion(
+            id: id,
+            addressedParty: addressed_party,
+            text: text
+        )
+    }
+}
+
+struct DisputeSettlementOptionDTO: Codable {
+    let id: String
+    let lean: String
+    let title: String
+    let description: String
+    let customer_action: String
+    let performer_action: String
+    let compensation_rub: Int?
+    let refund_percent: Int?
+    let resolution_kind: String
+
+    var domain: DisputeSettlementOption {
+        DisputeSettlementOption(
+            id: id,
+            lean: lean,
+            title: title,
+            description: description,
+            customerAction: customer_action,
+            performerAction: performer_action,
+            compensationRub: compensation_rub,
+            refundPercent: refund_percent,
+            resolutionKind: resolution_kind
+        )
+    }
+}
+
+struct DisputeInitiatorTermsDTO: Codable {
+    let requested_compensation_rub: Int?
+    let desired_resolution: String?
+    let problem_title: String?
+
+    var domain: DisputeInitiatorTerms {
+        DisputeInitiatorTerms(
+            requestedCompensationRub: requested_compensation_rub ?? 0,
+            desiredResolution: normalizedChatText(desired_resolution) ?? "other",
+            problemTitle: normalizedChatText(problem_title) ?? ""
+        )
+    }
+}
+
+struct DisputeStateDTO: Codable {
+    let id: String
+    let thread_id: String
+    let status: String
+    let initiator_user_id: String
+    let counterparty_user_id: String
+    let initiator_party_role: String
+    let viewer_side: String
+    let viewer_party_role: String?
+    let opened_by_display_name: String
+    let counterparty_deadline_at: String?
+    let active_round: Int?
+    let is_model_thinking: Bool?
+    let resolution_summary: String?
+    let selected_option_id: String?
+    let moderator_required: Bool?
+    let questions: [DisputeQuestionDTO]?
+    let required_answer_party_roles: [String]?
+    let options: [DisputeSettlementOptionDTO]?
+    let votes: [String: String]?
+    let my_vote_option_id: String?
+    let initiator_terms: DisputeInitiatorTermsDTO?
+    let last_model_error: String?
+
+    var domain: DisputeState {
+        DisputeState(
+            id: id,
+            threadID: thread_id,
+            status: status,
+            initiatorUserID: initiator_user_id,
+            counterpartyUserID: counterparty_user_id,
+            initiatorPartyRole: initiator_party_role,
+            viewerSide: viewer_side,
+            viewerPartyRole: normalizedChatText(viewer_party_role),
+            openedByDisplayName: normalizedChatText(opened_by_display_name) ?? "Система",
+            counterpartyDeadlineAt: ProfileDateParser.parse(counterparty_deadline_at),
+            activeRound: max(1, active_round ?? 1),
+            isModelThinking: is_model_thinking ?? false,
+            resolutionSummary: normalizedChatText(resolution_summary),
+            selectedOptionID: normalizedChatText(selected_option_id),
+            moderatorRequired: moderator_required ?? false,
+            questions: (questions ?? []).map(\.domain),
+            requiredAnswerPartyRoles: required_answer_party_roles ?? [],
+            options: (options ?? []).map(\.domain),
+            votes: votes ?? [:],
+            myVoteOptionID: normalizedChatText(my_vote_option_id),
+            initiatorTerms: initiator_terms?.domain ?? DisputeInitiatorTerms(
+                requestedCompensationRub: 0,
+                desiredResolution: "other",
+                problemTitle: ""
+            ),
+            lastModelError: normalizedChatText(last_model_error)
+        )
+    }
+}
+
 struct SupportThreadDTO: Codable {
     let thread_id: String
+}
+
+struct ChatRealtimeCapabilities: Equatable, Hashable {
+    let chatWebSocketEnabled: Bool
+    let websocketPath: String
+}
+
+struct ChatRealtimeCapabilitiesDTO: Codable {
+    let chat_websocket_enabled: Bool?
+    let websocket_path: String?
+
+    var domain: ChatRealtimeCapabilities {
+        ChatRealtimeCapabilities(
+            chatWebSocketEnabled: chat_websocket_enabled ?? false,
+            websocketPath: normalizedChatText(websocket_path) ?? "/ws/chats/{thread_id}"
+        )
+    }
 }
 
 struct ReportReasonOption: Identifiable, Equatable, Hashable {
