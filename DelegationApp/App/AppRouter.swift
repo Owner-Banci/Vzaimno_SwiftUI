@@ -20,11 +20,7 @@ struct RootView: View {
                 MainTabView()
             } else {
                 if session.isRestoring {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                        Text("Проверяем сессию…")
-                            .font(.system(size: 14))
-                    }
+                    SplashLoadingView()
                 } else {
                     if session.isAuthorized {
                         MainTabView()
@@ -34,6 +30,32 @@ struct RootView: View {
                 }
             }
         }
+    }
+}
+
+private struct SplashLoadingView: View {
+    @State private var isPulsing = false
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image("AppLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 112, height: 112)
+                .scaleEffect(isPulsing ? 1.05 : 0.96)
+                .shadow(color: Theme.ColorToken.turquoise.opacity(0.24), radius: 24, x: 0, y: 14)
+                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isPulsing)
+
+            ProgressView()
+                .tint(Theme.ColorToken.turquoise)
+
+            Text("Проверяем сессию…")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.ColorToken.milk.ignoresSafeArea())
+        .onAppear { isPulsing = true }
     }
 }
 
