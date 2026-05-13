@@ -27,13 +27,26 @@ enum AppConfig {
     // =========================================
     // BASE URL ДЛЯ API
     // =========================================
-    // По умолчанию используем удаленный production backend.
-    // При необходимости можно переопределить через Info.plist ключ API_BASE_URL.
+    // Приоритеты:
+    // 1) Environment Variable API_BASE_URL (удобно для Scheme в Xcode),
+    // 2) Info.plist ключ API_BASE_URL,
+    // 3) fallback по сборке.
+    //
+    // По умолчанию DEBUG и Release используют deployed backend.
+    // Для локального backend задай API_BASE_URL через Scheme или Info.plist,
+    // например http://<LAN_IP_Мака>:8000 для реального iPhone.
     static let apiBaseURL: URL = {
+        if let s = ProcessInfo.processInfo.environment["API_BASE_URL"],
+           !s.isEmpty,
+           let url = URL(string: s) {
+            return url
+        }
+
         if let s = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String,
            !s.isEmpty,
            let url = URL(string: s) {
             return url
+            
         }
 
         let fallback = "https://api.vzaimno.net"

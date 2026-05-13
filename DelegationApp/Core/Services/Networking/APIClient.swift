@@ -74,6 +74,16 @@ struct APIClient {
         self.session = URLSession(configuration: config)
     }
 
+    private func connectivityMessage(for error: URLError, url: URL?) -> String {
+        let target = url?.absoluteString ?? Endpoints.baseURL.absoluteString
+        var message = "Сеть недоступна (\(target)): \(error.localizedDescription)"
+        let isTLS = error.code == .secureConnectionFailed || error.code == .serverCertificateUntrusted
+        if isTLS {
+            message += "\nПроверь API_BASE_URL: для локального backend нужен http://..., не https://."
+        }
+        return message
+    }
+
     func request<T: Decodable, B: Encodable>(
         _ endpoint: APIEndpoint,
         body: B? = nil,
@@ -91,6 +101,10 @@ struct APIClient {
         if let body {
             req.httpBody = try JSONEncoder().encode(body)
         }
+
+        #if DEBUG
+        print("API -> \(req.httpMethod ?? "GET") \(req.url?.absoluteString ?? "nil")")
+        #endif
 
         do {
             let (data, response) = try await session.data(for: req)
@@ -112,8 +126,7 @@ struct APIClient {
             throw APIError(statusCode: http.statusCode, message: raw)
 
         } catch let e as URLError {
-            // Человеческая ошибка сети (например, если baseURL не доступен с iPhone)
-            throw APIError(statusCode: -1, message: "Сеть недоступна: \(e.localizedDescription)")
+            throw APIError(statusCode: -1, message: connectivityMessage(for: e, url: req.url))
         }
     }
 
@@ -157,7 +170,16 @@ struct APIClient {
 
         let body = Self.makeMultipartBody(files: files, boundary: boundary, fieldName: fieldName)
 
-        let (data, response) = try await session.upload(for: req, from: body)
+        #if DEBUG
+        print("API -> \(req.httpMethod ?? "POST") \(req.url?.absoluteString ?? "nil") [multipart]")
+        #endif
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.upload(for: req, from: body)
+        } catch let e as URLError {
+            throw APIError(statusCode: -1, message: connectivityMessage(for: e, url: req.url))
+        }
         guard let http = response as? HTTPURLResponse else {
             throw APIError(statusCode: -1, message: "Нет HTTP ответа")
         }
@@ -174,4 +196,3 @@ struct APIClient {
     }
     
 }
-

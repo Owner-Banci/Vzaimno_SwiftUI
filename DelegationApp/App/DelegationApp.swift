@@ -13,6 +13,10 @@ struct DelegationApp: App {
         YMKMapKit.setApiKey("df3f9145-2080-42b7-9b91-b879c34236bb")
         YMKMapKit.sharedInstance()
         #endif
+        #if DEBUG
+        print("AppConfig.apiBaseURL = \(AppConfig.apiBaseURL.absoluteString)")
+        print("AppConfig.webSocketBaseURL = \(AppConfig.webSocketBaseURL.absoluteString)")
+        #endif
     }
 
     var body: some Scene {
